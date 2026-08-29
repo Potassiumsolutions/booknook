@@ -19,14 +19,16 @@
   :root{
     --bg:#faf6ef; --panel:#ffffff; --ink:#2b2233; --muted:#8b7f96;
     --brand:#5b3a91; --brand2:#8a5cd1; --accent:#f0a500; --gold:#f6c945;
-    --line:#e7ddef; --shadow:0 6px 18px rgba(60,30,100,.12);
+    --line:#e7ddef; --shadow:0 6px 18px rgba(0,0,0,.45);
     --ok:#2e9e6b; --wish:#e8734a;
+    --page:#000000;              /* black app background */
+    --onblack:#cdbfe6;           /* readable text on the black background */
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; height:100%}
   body{
     font-family:"Segoe UI",system-ui,Arial,sans-serif;
-    background:var(--bg); color:var(--ink);
+    background:var(--page); color:var(--ink);
     display:flex; flex-direction:column; min-height:100dvh;
   }
   /* ---- Header ---- */
@@ -90,7 +92,7 @@
   .checkitem .rm{color:#d66; font-size:20px; cursor:pointer; padding:2px 8px; flex:0 0 auto}
   .addrow{display:flex; gap:8px; margin:6px 0 4px}
   .addrow input{flex:1; padding:12px; border-radius:12px; border:2px solid var(--line); font-size:16px; min-width:0}
-  .letter{font-weight:800; color:var(--brand); margin:14px 4px 6px; font-size:15px; letter-spacing:1px}
+  .letter{font-weight:800; color:#b79ae6; margin:14px 4px 6px; font-size:15px; letter-spacing:1px}
   .book{
     display:flex; gap:12px; background:var(--panel); border:1px solid var(--line);
     border-radius:14px; padding:10px; margin-bottom:10px; box-shadow:var(--shadow); cursor:pointer;
@@ -110,9 +112,9 @@
   .tag.series{background:#fff2df; color:#b57400}
   .tag.year{background:#e9f3ff; color:#2f6bbf}
 
-  .empty{text-align:center; color:var(--muted); padding:50px 20px}
+  .empty{text-align:center; color:var(--onblack); padding:50px 20px}
   .empty .big{font-size:52px; margin-bottom:10px}
-  .empty .btnlink{color:var(--brand); font-weight:700; cursor:pointer; text-decoration:underline}
+  .empty .btnlink{color:#b79ae6; font-weight:700; cursor:pointer; text-decoration:underline}
 
   /* ---- Buttons ---- */
   .btn{
@@ -186,20 +188,20 @@
 
   /* ---- Tab bar ---- */
   nav{
-    position:fixed; bottom:0; left:0; right:0; display:flex; background:#fff;
-    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); z-index:40;
-    box-shadow:0 -4px 16px rgba(60,30,100,.08);
+    position:fixed; bottom:0; left:0; right:0; display:flex; background:#12121a;
+    border-top:1px solid #2a2438; padding-bottom:env(safe-area-inset-bottom); z-index:40;
+    box-shadow:0 -4px 16px rgba(0,0,0,.5);
   }
   nav button{
     flex:1; border:none; background:none; padding:9px 4px 8px; font-size:11px; font-weight:600;
-    color:var(--muted); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
+    color:#8f84a3; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
   }
   nav button .ic{font-size:22px; line-height:1}
-  nav button.active{color:var(--brand)}
+  nav button.active{color:#b79ae6}
   nav button.active .ic{transform:translateY(-1px)}
 
-  .credit{text-align:center; color:var(--muted); font-size:12px; margin:18px 0 4px}
-  .credit b{color:var(--brand)}
+  .credit{text-align:center; color:var(--onblack); font-size:12px; margin:18px 0 4px}
+  .credit b{color:#c9b6f2}
 </style>
 </head>
 <body>
@@ -276,7 +278,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v17</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v18</span></div>
 </main>
 
 <nav>
@@ -965,7 +967,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
