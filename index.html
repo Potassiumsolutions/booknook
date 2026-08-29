@@ -142,6 +142,13 @@
   /* ---- Modal ---- */
   .modal{position:fixed; inset:0; background:rgba(30,15,50,.55); display:none; align-items:flex-end; justify-content:center; z-index:50}
   .modal.show{display:flex}
+  .sheetwrap{position:relative; width:100%; max-width:520px}
+  .sheetback{
+    position:absolute; top:12px; left:12px; z-index:12;
+    background:var(--brand); color:#fff; border:none; border-radius:999px;
+    padding:8px 14px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:var(--shadow);
+  }
+  .sheetback:active{transform:scale(.96)}
   .sheet{
     background:var(--bg); width:100%; max-width:520px; border-radius:22px 22px 0 0; padding:18px 18px calc(24px + env(safe-area-inset-bottom));
     max-height:92dvh; overflow-y:auto; animation:up .25s ease;
@@ -278,7 +285,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v21</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v22</span></div>
 </main>
 
 <nav>
@@ -291,7 +298,10 @@
 
 <!-- ===== Book detail sheet ===== -->
 <div class="modal" id="detailModal">
-  <div class="sheet" id="detailSheet"></div>
+  <div class="sheetwrap">
+    <button class="sheetback" id="sheetBackBtn" onclick="handleBack()">← Back</button>
+    <div class="sheet" id="detailSheet"></div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -353,7 +363,7 @@ function showTrash(){
     sheet.innerHTML = `<div class="grip"></div>
       <div class="empty"><div class="big">🗑️</div><div>Nothing here. Deleted books and series show up here so you can bring them back.</div></div>
       <button class="btn ghost" onclick="closeDetail()">Close</button>`;
-    detailModal.classList.add('show'); return;
+    showModal(); return;
   }
   const items = trash.slice().sort((a,b)=>b.when-a.when);
   const rows = items.map(it=>{
@@ -372,7 +382,7 @@ function showTrash(){
     <p style="text-align:center;color:var(--muted);margin:0 0 14px">Tap "Bring back" to restore it. Newest first.</p>
     ${rows}
     <button class="btn ghost" style="margin-top:12px" onclick="closeDetail()">Close</button>`;
-  detailModal.classList.add('show');
+  showModal();
 }
 
 /* ---------- helpers ---------- */
@@ -483,7 +493,7 @@ function showGenreList(){
       <div class="empty"><div class="big">🏷️</div>
       <div>No genres yet — add some books first and their genres will show up here.</div></div>
       <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">Close</button>`;
-    detailModal.classList.add('show'); return;
+    showModal(); return;
   }
   const counts = {};
   library.forEach(b=>{ const g=(b.genre||'').trim()||NONE_GENRE; counts[g]=(counts[g]||0)+1; });
@@ -508,7 +518,7 @@ function showGenreList(){
   sheet.querySelectorAll('.genrerow').forEach(el=>{
     el.addEventListener('click', ()=> filterByGenre(el.dataset.genre));
   });
-  detailModal.classList.add('show');
+  showModal();
 }
 
 function filterByGenre(g){
@@ -577,7 +587,29 @@ function bookCardWish(b){
    ======================================================================= */
 const detailModal = document.getElementById('detailModal');
 detailModal.addEventListener('click', e=>{ if(e.target===detailModal) closeDetail(); });
-function closeDetail(){ detailModal.classList.remove('show'); }
+
+/* ---- Modal + Back-button navigation ----
+   showModal(backFn): open the sheet; the ← Back button (and the phone's back
+   button) run backFn — or just close if none is given. */
+let currentBack = null, mbnPushed = false, suppressPop = false;
+function showModal(backFn){
+  currentBack = backFn || closeDetail;
+  const wasClosed = !detailModal.classList.contains('show');
+  detailModal.classList.add('show');
+  if(wasClosed && !mbnPushed){ mbnPushed = true; try{ history.pushState({mbnModal:1}, ''); }catch(e){} }
+}
+function handleBack(){ (currentBack || closeDetail)(); }
+function closeDetail(){
+  if(!detailModal.classList.contains('show')) return;
+  detailModal.classList.remove('show');
+  currentBack = null;
+  if(mbnPushed){ mbnPushed = false; suppressPop = true; try{ history.back(); }catch(e){} }
+}
+/* The phone's hardware Back button */
+window.addEventListener('popstate', ()=>{
+  if(suppressPop){ suppressPop = false; return; }
+  if(detailModal.classList.contains('show')){ mbnPushed = false; detailModal.classList.remove('show'); currentBack = null; }
+});
 
 function openDetail(id, where){
   const arr = where==='lib' ? library : wishlist;
@@ -610,7 +642,7 @@ function openDetail(id, where){
       <button class="btn ghost" onclick="closeDetail()">Close</button>
     </div>
   `;
-  detailModal.classList.add('show');
+  showModal();
 }
 
 /* The edit form (reached from the book page's ✏️ Edit button) */
@@ -629,7 +661,7 @@ function editDetail(id, where){
     <button class="btn" onclick="saveEdits('${id}','${where}')">💾 Save changes</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openDetail('${id}','${where}')">Cancel</button>
   `;
-  detailModal.classList.add('show');
+  showModal(()=>openDetail(id, where));
 }
 
 function saveEdits(id, where){
@@ -667,7 +699,7 @@ function askDelete(id, where){
     <button class="btn danger" onclick="deleteBook('${id}','${where}')">Yes, remove it</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openDetail('${id}','${where}')">↩️ No, keep it</button>
   `;
-  detailModal.classList.add('show');
+  showModal(()=>openDetail(id, where));
 }
 function deleteBook(id, where){
   const arr = where==='lib' ? library : wishlist;
@@ -715,7 +747,7 @@ function askAddSeries(book, name){
     </div>
     <button class="btn" onclick="confirmBuildSeries()">🔖 Yes, add the series</button>
     <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">No thanks</button>`;
-  detailModal.classList.add('show');
+  showModal();
 }
 function confirmBuildSeries(){
   const p = window._pendingSeries; if(!p){ closeDetail(); return; }
@@ -947,7 +979,7 @@ function showScanResult(book){
       <button class="btn ghost" onclick="closeDetail()">Cancel</button>
     </div>
   `;
-  detailModal.classList.add('show');
+  showModal();
 }
 function confirmAdd(book){ addToLibrary(book); closeDetail(); }
 function confirmWish(book){ addToWish(book); closeDetail(); }
@@ -967,7 +999,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1264,7 +1296,7 @@ function newSeries(){
       <input id="newSeriesName" placeholder="e.g. Harry Potter" autocomplete="off"></div>
     <button class="btn" onclick="createSeries()">Create series</button>
     <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">Cancel</button>`;
-  detailModal.classList.add('show');
+  showModal();
   setTimeout(()=>{ const el=document.getElementById('newSeriesName'); if(el) el.focus(); },80);
   const el=document.getElementById('newSeriesName');
   el.addEventListener('keydown', e=>{ if(e.key==='Enter') createSeries(); });
@@ -1311,7 +1343,7 @@ function openSeries(id){
       <button class="btn danger" onclick="askDeleteSeries('${id}')">🗑️ Delete series</button>
       <button class="btn ghost" onclick="closeDetail()">Close</button>
     </div>`;
-  detailModal.classList.add('show');
+  showModal();
   const inp = document.getElementById('addBookInput');
   inp.addEventListener('keydown', e=>{ if(e.key==='Enter') addSeriesBook(id); });
 }
@@ -1350,7 +1382,7 @@ function askDeleteSeries(id){
     </div>
     <button class="btn danger" onclick="deleteSeries('${id}')">Yes, delete it</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openSeries('${id}')">↩️ No, keep it</button>`;
-  detailModal.classList.add('show');
+  showModal(()=>openSeries(id));
 }
 function deleteSeries(id){
   const i=seriesSets.findIndex(s=>s.id===id); if(i<0) return;

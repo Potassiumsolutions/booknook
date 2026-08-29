@@ -5,7 +5,7 @@
    • Other files (icons, scanner, manifest) are stale-while-revalidate — shown
      instantly from cache, quietly refreshed in the background for next time.
 */
-const CACHE = 'booknook-v21';
+const CACHE = 'booknook-v22';
 const SHELL = [
   './',
   './index.html',
