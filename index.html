@@ -434,7 +434,7 @@ function openDetail(id, where){
         : `<button class="btn" onclick="moveBook('${id}','wish','lib')">📚 I got it! Add to Library</button>`}
     </div>
     <div class="btnrow">
-      <button class="btn danger" onclick="deleteBook('${id}','${where}')">🗑️ Remove</button>
+      <button class="btn danger" onclick="askDelete('${id}','${where}')">🗑️ Remove</button>
       <button class="btn ghost" onclick="closeDetail()">Close</button>
     </div>
   `;
@@ -459,6 +459,24 @@ function moveBook(id, from, to){
   dst.push(b);
   save(); renderAll(); closeDetail();
   toast(to==='lib' ? 'Added to your Library 📚' : 'Moved to Wish List ⭐');
+}
+function askDelete(id, where){
+  const arr = where==='lib' ? library : wishlist;
+  const b = arr.find(x=>x.id===id); if(!b) return;
+  const spot = where==='lib' ? 'Library' : 'Wish List';
+  const sheet = document.getElementById('detailSheet');
+  sheet.innerHTML = `
+    <div class="grip"></div>
+    <div style="text-align:center;padding:6px 4px 2px">
+      <div style="font-size:48px">🗑️</div>
+      <h2 style="margin:12px 0 8px">Remove this book?</h2>
+      <p style="color:var(--ink);font-weight:600;margin:0 0 6px">“${escapeHtml(b.title)}”</p>
+      <p style="color:var(--muted);margin:0 0 20px">will be taken out of your ${spot}.<br>You can always add it again later.</p>
+    </div>
+    <button class="btn danger" onclick="deleteBook('${id}','${where}')">Yes, remove it</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openDetail('${id}','${where}')">↩️ No, keep it</button>
+  `;
+  detailModal.classList.add('show');
 }
 function deleteBook(id, where){
   const arr = where==='lib' ? library : wishlist;
