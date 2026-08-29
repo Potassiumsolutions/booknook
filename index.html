@@ -945,12 +945,22 @@ function findAdd(idx, where, btn){
 document.getElementById('newSeriesBtn').addEventListener('click', newSeries);
 
 function getSeries(id){ return seriesSets.find(s=>s.id===id); }
+function normTitle(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(); }
 function ownsTitle(title){
-  const t=(title||'').toLowerCase().trim();
-  return !!t && library.some(b=>(b.title||'').toLowerCase().trim()===t);
+  const t=normTitle(title);
+  return !!t && library.some(b=>normTitle(b.title)===t);
+}
+/* Automatically tick off any series book that's now in the Library.
+   Only ever turns a check ON — never removes a check you made yourself. */
+function syncSeriesWithLibrary(){
+  let changed=false;
+  seriesSets.forEach(s=> s.books.forEach(b=>{ if(!b.have && ownsTitle(b.title)){ b.have=true; changed=true; } }));
+  if(changed) localStorage.setItem(LS_SER, JSON.stringify(seriesSets));
+  return changed;
 }
 
 function renderSeries(){
+  syncSeriesWithLibrary();
   const list = document.getElementById('seriesList');
   if(!seriesSets.length){
     list.innerHTML = `<div class="empty"><div class="big">🔖</div>
@@ -996,6 +1006,7 @@ function createSeries(){
 }
 
 function openSeries(id){
+  syncSeriesWithLibrary();
   const s = getSeries(id); if(!s) return;
   const have = s.books.filter(b=>b.have).length, tot = s.books.length;
   const pct = tot ? Math.round(have/tot*100) : 0;
@@ -1019,7 +1030,7 @@ function openSeries(id){
       <input id="addBookInput" placeholder="Type a book title…" autocomplete="off">
       <button class="btn sm" style="width:auto" onclick="addSeriesBook('${id}')">Add</button>
     </div>
-    <button class="btn ghost sm" style="width:100%;margin:8px 0 4px" onclick="autoCheckOwned('${id}')">✓ Check the ones in my Library</button>
+    <p style="text-align:center;color:var(--ok);font-size:13px;font-weight:600;margin:10px 0 8px">✓ Books you scan into your Library get checked off here automatically</p>
     <button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="findSeriesBooks('${id}')">🔎 Find the books online</button>
     <div id="seriesFindBox"></div>
 
