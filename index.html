@@ -7,7 +7,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#8a5cd1">
+<meta name="theme-color" content="#a3005c">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -33,7 +33,7 @@
   }
   /* ---- Header ---- */
   header{
-    background:linear-gradient(135deg,#8a5cd1,#b28ff0);
+    background:linear-gradient(135deg,#a3005c,#d63384);
     color:#fff; padding:14px 16px calc(14px + env(safe-area-inset-top)) 16px;
     padding-top:calc(14px + env(safe-area-inset-top));
     text-align:center; box-shadow:var(--shadow); position:relative; z-index:3;
@@ -278,7 +278,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v19</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v20</span></div>
 </main>
 
 <nav>
@@ -967,7 +967,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
