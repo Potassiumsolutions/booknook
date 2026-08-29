@@ -578,7 +578,45 @@ function addToLibrary(book, silent){
   library.push({...book, id: uid(), dateAdded: Date.now()});
   save(); renderAll();
   if(!silent) toast(`Added "${book.title}" 📚`);
+  if(book.series && String(book.series).trim()) ensureSeriesFromBook(book);
   return true;
+}
+
+/* When you add a book that belongs to a series, make sure that whole series
+   exists in the 🔖 Series section (and fill in the other books). */
+function ensureSeriesFromBook(book){
+  const name = String(book.series||'').trim();
+  if(!name) return;
+  let s = seriesSets.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  const isNew = !s;
+  if(isNew){ s = { id: uid(), name, books: [] }; seriesSets.push(s); }
+  // make sure the book you just added is in the series and checked off
+  if(!s.books.some(b=>normTitle(b.title)===normTitle(book.title))){
+    s.books.push({ title: book.title, have: true });
+  }
+  save(); renderSeries();
+  if(isNew){
+    toast(`Started the “${name}” series 🔖`);
+    populateSeriesBooks(s.id, name);   // fill in the rest in the background
+  }
+}
+
+/* Best-effort: look up the other English books in a series and add them. */
+async function populateSeriesBooks(seriesId, name){
+  const s = getSeries(seriesId); if(!s) return;
+  let titles = [];
+  try{
+    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(name)}&language=eng&limit=30&fields=title`);
+    if(r.ok){ const j = await r.json(); titles = (j.docs||[]).map(d=>d.title).filter(Boolean); }
+  }catch(e){}
+  const seen = new Set(s.books.map(b=>normTitle(b.title)));
+  let added = 0;
+  for(const t of titles){
+    const k = normTitle(t);
+    if(k && !seen.has(k)){ seen.add(k); s.books.push({ title:t, have: ownsTitle(t) }); added++; }
+    if(added >= 12) break;   // keep the list sensible; noisy searches don't flood it
+  }
+  save(); renderSeries();
 }
 function addToWish(book){
   if(inWish(book)){ toast('Already on your wish list'); return false; }
