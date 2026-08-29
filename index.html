@@ -231,6 +231,8 @@
     <p style="color:var(--muted);font-size:13px;text-align:center;margin-top:14px">
       The ISBN is the number under the barcode. It usually starts with 978.
     </p>
+    <button class="btn ghost sm" id="diagBtn" style="width:100%;margin-top:10px">🔧 Camera not working? Tap to check</button>
+    <div id="scanDiag"></div>
   </section>
 
   <!-- ===== WISH LIST ===== -->
@@ -262,7 +264,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v14</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v15</span></div>
 </main>
 
 <nav>
@@ -857,6 +859,49 @@ const scanToggle = document.getElementById('scanToggle');
 const scanHint = document.getElementById('scanHint');
 
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
+
+/* Plain-language camera self-check so we can see what's wrong on a real phone. */
+const APP_VERSION = 'v15';
+document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
+async function runCameraCheck(){
+  const box = document.getElementById('scanDiag');
+  box.innerHTML = `<div class="loading"><div class="spinner"></div>Checking…</div>`;
+  const lines = [];
+  const yn = b => b ? '✅ yes' : '❌ NO';
+  lines.push(['App version', APP_VERSION]);
+  lines.push(['Secure (https)', location.protocol==='https:' ? '✅ yes' : '❌ NO']);
+  lines.push(['Browser can use camera', yn(!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia))]);
+  lines.push(['Built-in scanner', ('BarcodeDetector' in window) ? '✅ yes' : '➖ no (uses backup)']);
+
+  let perm = 'unknown';
+  try{ if(navigator.permissions && navigator.permissions.query){ perm = (await navigator.permissions.query({name:'camera'})).state; } }catch(e){}
+  lines.push(['Camera permission', perm]);
+
+  let openResult = '';
+  try{
+    const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    s.getTracks().forEach(t=>t.stop());
+    openResult = '✅ CAMERA OPENS!';
+  }catch(e){ openResult = '❌ FAILED (' + (e && e.name || 'error') + ')'; }
+  lines.push(['Open camera test', openResult]);
+
+  const standalone = window.matchMedia('(display-mode: standalone)').matches;
+  lines.push(['Opened as', standalone ? 'installed app' : 'browser tab']);
+  const ua = navigator.userAgent;
+  let browser = 'other';
+  if(/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+  else if(/Chrome\//.test(ua) && !/wv\)/.test(ua)) browser = 'Chrome';
+  else if(/wv\)/.test(ua)) browser = 'in-app browser (WebView)';
+  else if(/CriOS/.test(ua)) browser = 'Chrome (iPhone)';
+  else if(/Safari/.test(ua)) browser = 'Safari';
+  lines.push(['Browser', browser]);
+
+  box.innerHTML = `<div style="background:#fff;border:2px solid var(--line);border-radius:14px;padding:14px;margin-top:12px">
+      <div style="font-weight:800;color:var(--brand);margin-bottom:8px">Camera Check 🔧</div>
+      ${lines.map(([k,v])=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--line);font-size:14px"><span style="color:var(--muted)">${k}</span><span style="font-weight:700;text-align:right">${escapeHtml(String(v))}</span></div>`).join('')}
+      <div style="color:var(--muted);font-size:12px;margin-top:10px">Read these lines to whoever is helping you 🙂</div>
+    </div>`;
+}
 
 function hint(msg){ scanHint.textContent = msg; }
 
