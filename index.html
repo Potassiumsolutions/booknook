@@ -488,7 +488,7 @@ function addToWish(book){
    ======================================================================= */
 async function lookupISBN(isbn){
   isbn = (isbn||'').replace(/[^0-9Xx]/g,'');
-  if(isbn.length < 10){ toast('That ISBN looks too short'); return null; }
+  if(isbn.length < 10) return null;
   let book = null;
 
   // 1) Open Library edition record (reliable, no key, no rate limit) — best for series
@@ -522,8 +522,33 @@ async function lookupISBN(isbn){
     }catch(e){}
   }
 
-  if(!book){ toast("Couldn't find that book 😕 — try typing the title in Find"); return null; }
+  return book || null;
+}
+
+/* Look up a book from ANY barcode on it — the 978 book barcode OR a regular
+   store (UPC) barcode that some paperbacks use instead. */
+async function lookupAnyCode(raw){
+  const code = String(raw||'').replace(/[^0-9Xx]/g,'');
+  if(code.length < 8) return null;
+  const isIsbn = (code.length===13 && /^97[89]/.test(code)) || code.length===10;
+  let book = null;
+  if(isIsbn) book = await lookupISBN(code);
+  if(!book) book = await searchByCode(code);        // UPC / store barcode, or an ISBN that missed
+  if(!book && !isIsbn) book = await lookupISBN(code); // last resort
   return book;
+}
+
+/* Search for a book by an arbitrary barcode number (used for UPC / non-ISBN codes) */
+async function searchByCode(code){
+  try{
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(code)}&maxResults=1`);
+    if(r.ok){ const j = await r.json(); if(j.items && j.items.length) return fromGoogle(j.items[0]); }
+  }catch(e){}
+  try{
+    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(code)}&limit=1&fields=title,author_name,first_publish_year,cover_i,isbn,subject`);
+    if(r.ok){ const j = await r.json(); if(j.docs && j.docs.length) return fromOpenLibDoc(j.docs[0]); }
+  }catch(e){}
+  return null;
 }
 
 function fromGoogle(item, isbn){
@@ -565,8 +590,9 @@ async function doIsbnLookup(){
   const val = document.getElementById('isbnInput').value.trim();
   if(!val) return;
   toast('Looking it up…');
-  const book = await lookupISBN(val);
+  const book = await lookupAnyCode(val);
   if(book){ document.getElementById('isbnInput').value=''; showScanResult(book); }
+  else toast("Couldn't find that number — try the title in 🔍 Find");
 }
 
 function showScanResult(book){
@@ -716,13 +742,13 @@ function stopCamera(){
 async function onCodeFound(raw){
   const code = String(raw||'').replace(/[^0-9Xx]/g,'');
   const now = Date.now();
-  if(!(code && code.length>=10 && (code!==lastCode || now-lastTime>4000))) return;
+  if(!(code && code.length>=8 && (code!==lastCode || now-lastTime>4000))) return;
   lastCode=code; lastTime=now;
   if(navigator.vibrate) navigator.vibrate(80);
-  hint('Found it! Looking up…');
-  const book = await lookupISBN(code);
+  hint('Found a barcode! Looking it up…');
+  const book = await lookupAnyCode(code);
   if(book) showScanResult(book);
-  else hint('Hmm, no match. Try again, or type the ISBN below.');
+  else hint('No book matched that barcode. Try the other barcode on the book, or type the title in 🔍 Find.');
 }
 
 async function scanLoop(){
