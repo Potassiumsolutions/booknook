@@ -294,6 +294,7 @@ document.querySelectorAll('nav button').forEach(btn=>{
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b===btn));
     document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active', s.id==='view-'+v));
     if(v!=='scan') stopCamera();
+    else prepareScanner();   // warm up the fallback scanner so the camera opens instantly
   });
 });
 function goTo(v){ document.querySelector(`nav button[data-view="${v}"]`).click(); }
@@ -614,43 +615,65 @@ scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera
 
 function hint(msg){ scanHint.textContent = msg; }
 
+// Book barcodes are EAN-13. Only ask for formats the device actually supports.
+const WANTED_FORMATS = ['ean_13','ean_8','upc_a','upc_e','qr_code','code_128'];
+async function makeDetector(){
+  let formats = WANTED_FORMATS;
+  try{
+    if(BarcodeDetector.getSupportedFormats){
+      const sup = await BarcodeDetector.getSupportedFormats();
+      formats = WANTED_FORMATS.filter(f => sup.includes(f));
+    }
+  }catch(e){ formats = null; }
+  if(formats && !formats.length) return null;        // device supports no useful formats
+  return formats ? new BarcodeDetector({formats}) : new BarcodeDetector();
+}
+
+function looksBlocked(err){
+  const n = (err && err.name) || '';
+  const m = ((err && err.message) || '').toLowerCase();
+  return n==='NotAllowedError' || n==='SecurityError' ||
+         /permission|denied|not allowed|gesture|dismiss/.test(m);
+}
 function cameraErrorMessage(err){
-  const n = err && err.name || '';
-  if(n==='NotAllowedError' || n==='SecurityError')
-    return '📷 Camera is blocked. Tap the 🔒 (or ⓘ) next to the web address at the top, turn Camera ON, then tap Start Camera again.';
-  if(n==='NotFoundError' || n==='DevicesNotFoundError')
-    return 'No camera was found on this device. You can still type the ISBN below.';
-  if(n==='NotReadableError' || n==='TrackStartError')
-    return 'The camera is busy in another app. Close other camera apps and try again.';
+  const n = (err && err.name) || '';
+  if(looksBlocked(err))
+    return '📷 Camera permission is off. In Chrome: tap the ⋮ menu → tap the 🔒/ⓘ by the web address → Permissions → turn Camera ON. Then tap Start Camera again.';
+  if(n==='NotFoundError' || n==='DevicesNotFoundError' || n==='OverconstrainedError')
+    return 'No usable camera was found. You can still type the ISBN number below.';
+  if(n==='NotReadableError' || n==='TrackStartError' || n==='AbortError')
+    return 'The camera is busy in another app. Close other camera apps, then try again.';
   if(location.protocol!=='https:' && location.hostname!=='localhost')
     return 'The camera only works on the online (https) version. Open the app link, not a saved file.';
-  return 'Could not open the camera. You can type the ISBN below instead.';
+  return 'Could not open the camera. Tap Start Camera once more, or type the ISBN below.';
 }
 
 async function startCamera(){
   hint('Starting camera…');
   scanToggle.textContent = '⏳ Opening…';
 
-  // ---- Path A: native BarcodeDetector ----
+  // ---- Path A: native BarcodeDetector (fast; Chrome on Android) ----
   if('BarcodeDetector' in window){
-    try{
-      detector = detector || new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','isbn','qr_code']});
-      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-      video.srcObject = stream; await video.play();
-      usingZXing = false; scanning = true;
-      scanToggle.textContent = '⏹️ Stop Camera';
-      hint('Point at the barcode and hold steady…');
-      scanLoop();
-      return;
-    }catch(e){
-      // If it was a permission/hardware problem, report it. Otherwise fall through to ZXing.
-      if(e && (e.name==='NotAllowedError' || e.name==='SecurityError' || e.name==='NotFoundError' || e.name==='NotReadableError')){
-        hint(cameraErrorMessage(e)); scanToggle.textContent='📷 Start Camera'; return;
+    let det=null;
+    try{ det = await makeDetector(); }catch(e){ det=null; }
+    if(det){
+      detector = det;
+      try{
+        stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+        video.srcObject = stream; await video.play();
+        usingZXing = false; scanning = true;
+        scanToggle.textContent = '⏹️ Stop Camera';
+        hint('Point at the barcode and hold steady…');
+        scanLoop();
+        return;
+      }catch(e){
+        // Permission/hardware error — report it (don't silently fall through and re-prompt)
+        stopCamera(); hint(cameraErrorMessage(e)); return;
       }
     }
   }
 
-  // ---- Path B: ZXing fallback ----
+  // ---- Path B: ZXing fallback (iPhone Safari, older browsers) ----
   try{
     await ensureZXing();
     zxingReader = zxingReader || new ZXing.BrowserMultiFormatReader();
@@ -659,14 +682,18 @@ async function startCamera(){
     hint('Point at the barcode and hold steady…');
     await zxingReader.decodeFromConstraints(
       { video: { facingMode: 'environment' } }, video,
-      (result, err)=>{ if(result) onCodeFound(result.getText()); }
+      (result)=>{ if(result) onCodeFound(result.getText()); }
     );
   }catch(e){
-    scanning=false; scanToggle.textContent='📷 Start Camera';
+    stopCamera();
     hint(cameraErrorMessage(e));
   }
 }
 
+// Warm up the ZXing fallback ahead of time so getUserMedia runs inside the tap gesture.
+function prepareScanner(){
+  if(!('BarcodeDetector' in window)) ensureZXing().catch(()=>{});
+}
 function ensureZXing(){
   if(window.ZXing) return Promise.resolve();
   if(zxingLoading) return zxingLoading;
