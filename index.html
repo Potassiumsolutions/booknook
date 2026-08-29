@@ -74,6 +74,22 @@
   .genrerow:active{transform:scale(.99)}
   .genrerow.all{background:#f5efff; border-color:#e0d2f5}
   .gcount{background:#f0e9f8; color:var(--brand); border-radius:999px; padding:3px 12px; font-size:14px; font-weight:800; flex:0 0 auto}
+  /* Series tracker */
+  .seriescard{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; box-shadow:var(--shadow); cursor:pointer}
+  .seriescard:active{transform:scale(.99)}
+  .seriescard .top{display:flex; justify-content:space-between; align-items:center; gap:10px}
+  .seriescard .nm{font-weight:700; font-size:17px; min-width:0}
+  .prog{height:9px; background:#eee6f5; border-radius:999px; overflow:hidden; margin-top:10px}
+  .prog>span{display:block; height:100%; background:linear-gradient(90deg,var(--brand),var(--brand2)); transition:width .3s}
+  .progtxt{font-size:12px; color:var(--muted); margin-top:6px}
+  .checkitem{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px}
+  .checkitem .box{width:28px; height:28px; border-radius:8px; border:2px solid var(--brand); flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:17px; color:#fff; background:#fff; cursor:pointer}
+  .checkitem.on .box{background:var(--ok); border-color:var(--ok)}
+  .checkitem .ct{flex:1; font-weight:600; word-break:break-word}
+  .checkitem.on .ct{color:var(--muted); text-decoration:line-through}
+  .checkitem .rm{color:#d66; font-size:20px; cursor:pointer; padding:2px 8px; flex:0 0 auto}
+  .addrow{display:flex; gap:8px; margin:6px 0 4px}
+  .addrow input{flex:1; padding:12px; border-radius:12px; border:2px solid var(--line); font-size:16px; min-width:0}
   .letter{font-weight:800; color:var(--brand); margin:14px 4px 6px; font-size:15px; letter-spacing:1px}
   .book{
     display:flex; gap:12px; background:var(--panel); border:1px solid var(--line);
@@ -240,13 +256,20 @@
     </div>
   </section>
 
+  <!-- ===== SERIES ===== -->
+  <section class="view" id="view-series">
+    <button class="btn gold" id="newSeriesBtn" style="margin-bottom:12px">➕ Start a New Series</button>
+    <div id="seriesList"></div>
+  </section>
+
   <div class="credit">Made with ❤️ by <b>Mason Teibel</b></div>
 </main>
 
 <nav>
   <button data-view="library" class="active"><span class="ic">📚</span>Library</button>
   <button data-view="scan"><span class="ic">📷</span>Scan</button>
-  <button data-view="wishlist"><span class="ic">⭐</span>Wish List</button>
+  <button data-view="series"><span class="ic">🔖</span>Series</button>
+  <button data-view="wishlist"><span class="ic">⭐</span>Wishes</button>
   <button data-view="find"><span class="ic">🔍</span>Find</button>
 </nav>
 
@@ -265,12 +288,14 @@
 
 const LS_LIB = 'mbn_library';
 const LS_WISH = 'mbn_wishlist';
+const LS_SER = 'mbn_series';
 
 let library  = load(LS_LIB);
 let wishlist = load(LS_WISH);
+let seriesSets = load(LS_SER);
 
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)) || []; }catch(e){ return []; } }
-function save(){ localStorage.setItem(LS_LIB, JSON.stringify(library)); localStorage.setItem(LS_WISH, JSON.stringify(wishlist)); updateCount(); }
+function save(){ localStorage.setItem(LS_LIB, JSON.stringify(library)); localStorage.setItem(LS_WISH, JSON.stringify(wishlist)); localStorage.setItem(LS_SER, JSON.stringify(seriesSets)); updateCount(); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 /* ---------- helpers ---------- */
@@ -913,13 +938,174 @@ function findAdd(idx, where, btn){
   else { if(addToWish(b)){ btn.className='miniadd have'; btn.textContent='✓ Wished'; } }
 }
 
-/* fix: renderFindCard used without index in map above */
-document.addEventListener('DOMContentLoaded', ()=>{});
+/* =======================================================================
+   SERIES TRACKER  —  list a whole series and check off what you own
+   series set: { id, name, books:[ {title, have} ] }
+   ======================================================================= */
+document.getElementById('newSeriesBtn').addEventListener('click', newSeries);
+
+function getSeries(id){ return seriesSets.find(s=>s.id===id); }
+function ownsTitle(title){
+  const t=(title||'').toLowerCase().trim();
+  return !!t && library.some(b=>(b.title||'').toLowerCase().trim()===t);
+}
+
+function renderSeries(){
+  const list = document.getElementById('seriesList');
+  if(!seriesSets.length){
+    list.innerHTML = `<div class="empty"><div class="big">🔖</div>
+      <div>No series yet.<br>Tap <b>➕ Start a New Series</b> to list a whole series<br>and check off the books you have!</div></div>`;
+    return;
+  }
+  const sorted = seriesSets.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  list.innerHTML = sorted.map(s=>{
+    const have = s.books.filter(b=>b.have).length, tot = s.books.length;
+    const pct = tot ? Math.round(have/tot*100) : 0;
+    const done = tot>0 && have===tot;
+    return `<div class="seriescard" onclick="openSeries('${s.id}')">
+        <div class="top">
+          <div class="nm">🔖 ${escapeHtml(s.name)} ${done?'🏆':''}</div>
+          <div class="gcount">${have}/${tot}</div>
+        </div>
+        <div class="prog"><span style="width:${pct}%"></span></div>
+        <div class="progtxt">${tot? (done?'Complete! You have them all 🎉':`You have ${have} of ${tot}`):'No books added yet — tap to add them'}</div>
+      </div>`;
+  }).join('');
+}
+
+function newSeries(){
+  const sheet = document.getElementById('detailSheet');
+  sheet.innerHTML = `<div class="grip"></div>
+    <h2 style="text-align:center;margin:4px 0 14px">🔖 New Series</h2>
+    <div class="field"><label>Series name</label>
+      <input id="newSeriesName" placeholder="e.g. Harry Potter" autocomplete="off"></div>
+    <button class="btn" onclick="createSeries()">Create series</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">Cancel</button>`;
+  detailModal.classList.add('show');
+  setTimeout(()=>{ const el=document.getElementById('newSeriesName'); if(el) el.focus(); },80);
+  const el=document.getElementById('newSeriesName');
+  el.addEventListener('keydown', e=>{ if(e.key==='Enter') createSeries(); });
+}
+function createSeries(){
+  const name = (document.getElementById('newSeriesName').value||'').trim();
+  if(!name){ toast('Please type a series name'); return; }
+  const s = { id: uid(), name, books: [] };
+  seriesSets.push(s); save(); renderSeries();
+  openSeries(s.id);
+  toast('Series created 🔖');
+}
+
+function openSeries(id){
+  const s = getSeries(id); if(!s) return;
+  const have = s.books.filter(b=>b.have).length, tot = s.books.length;
+  const pct = tot ? Math.round(have/tot*100) : 0;
+  const sheet = document.getElementById('detailSheet');
+
+  const items = s.books.map((b,i)=>
+    `<div class="checkitem ${b.have?'on':''}">
+       <div class="box" onclick="toggleHave('${id}',${i})">${b.have?'✓':''}</div>
+       <div class="ct" onclick="toggleHave('${id}',${i})">${escapeHtml(b.title)}</div>
+       <div class="rm" onclick="removeSeriesBook('${id}',${i})">✕</div>
+     </div>`).join('');
+
+  sheet.innerHTML = `<div class="grip"></div>
+    <h2 style="text-align:center;margin:2px 0 4px">🔖 ${escapeHtml(s.name)}</h2>
+    <div class="prog" style="max-width:320px;margin:8px auto 4px"><span style="width:${pct}%"></span></div>
+    <p style="text-align:center;color:var(--muted);margin:0 0 14px">${tot? `You have ${have} of ${tot}`:'Add the books in this series below'}</p>
+
+    <div id="seriesItems">${items || '<p style="text-align:center;color:var(--muted);margin:6px 0 14px">No books yet — add them one at a time.</p>'}</div>
+
+    <div class="addrow">
+      <input id="addBookInput" placeholder="Type a book title…" autocomplete="off">
+      <button class="btn sm" style="width:auto" onclick="addSeriesBook('${id}')">Add</button>
+    </div>
+    <button class="btn ghost sm" style="width:100%;margin:8px 0 4px" onclick="autoCheckOwned('${id}')">✓ Check the ones in my Library</button>
+    <button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="findSeriesBooks('${id}')">🔎 Find the books online</button>
+    <div id="seriesFindBox"></div>
+
+    <div class="btnrow">
+      <button class="btn danger" onclick="askDeleteSeries('${id}')">🗑️ Delete series</button>
+      <button class="btn ghost" onclick="closeDetail()">Close</button>
+    </div>`;
+  detailModal.classList.add('show');
+  const inp = document.getElementById('addBookInput');
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') addSeriesBook(id); });
+}
+
+function toggleHave(id, i){
+  const s=getSeries(id); if(!s||!s.books[i]) return;
+  s.books[i].have = !s.books[i].have; save(); openSeries(id); renderSeries();
+}
+function addSeriesBook(id){
+  const s=getSeries(id); if(!s) return;
+  const inp=document.getElementById('addBookInput');
+  const title=(inp.value||'').trim(); if(!title) return;
+  if(s.books.some(b=>b.title.toLowerCase()===title.toLowerCase())){ toast('That book is already in the list'); inp.value=''; return; }
+  s.books.push({ title, have: ownsTitle(title) });
+  save(); openSeries(id); renderSeries();
+}
+function removeSeriesBook(id, i){
+  const s=getSeries(id); if(!s||!s.books[i]) return;
+  s.books.splice(i,1); save(); openSeries(id); renderSeries();
+}
+function autoCheckOwned(id){
+  const s=getSeries(id); if(!s) return;
+  let n=0; s.books.forEach(b=>{ if(!b.have && ownsTitle(b.title)){ b.have=true; n++; } });
+  save(); openSeries(id); renderSeries();
+  toast(n? `Checked off ${n} you own ✓` : 'No matches found in your Library');
+}
+function askDeleteSeries(id){
+  const s=getSeries(id); if(!s) return;
+  const sheet=document.getElementById('detailSheet');
+  sheet.innerHTML = `<div class="grip"></div>
+    <div style="text-align:center;padding:6px 4px 2px">
+      <div style="font-size:48px">🗑️</div>
+      <h2 style="margin:12px 0 8px">Delete this series?</h2>
+      <p style="color:var(--ink);font-weight:600;margin:0 0 6px">“${escapeHtml(s.name)}”</p>
+      <p style="color:var(--muted);margin:0 0 20px">The whole checklist will be removed.<br>(Your library books are not affected.)</p>
+    </div>
+    <button class="btn danger" onclick="deleteSeries('${id}')">Yes, delete it</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openSeries('${id}')">↩️ No, keep it</button>`;
+  detailModal.classList.add('show');
+}
+function deleteSeries(id){
+  const i=seriesSets.findIndex(s=>s.id===id); if(i<0) return;
+  seriesSets.splice(i,1); save(); renderSeries(); closeDetail(); toast('Series deleted');
+}
+
+async function findSeriesBooks(id){
+  const s=getSeries(id); if(!s) return;
+  const box=document.getElementById('seriesFindBox');
+  box.innerHTML=`<div class="loading"><div class="spinner"></div>Looking for books in “${escapeHtml(s.name)}”…</div>`;
+  let titles=[];
+  try{
+    const r=await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(s.name)}&limit=30&fields=title`);
+    if(r.ok){ const j=await r.json(); titles=(j.docs||[]).map(d=>d.title).filter(Boolean); }
+  }catch(e){}
+  // de-duplicate (case-insensitive), drop ones already in the list
+  const seen=new Set(s.books.map(b=>b.title.toLowerCase()));
+  const uniq=[];
+  titles.forEach(t=>{ const k=t.toLowerCase(); if(!seen.has(k)){ seen.add(k); uniq.push(t); } });
+  const top=uniq.slice(0,12);
+  if(!top.length){ box.innerHTML=`<p style="color:var(--muted);text-align:center;margin:8px 0 14px">Couldn’t find more books — add them by title above.</p>`; return; }
+  box.innerHTML = `<p style="color:var(--muted);font-size:13px;margin:6px 2px">Tap a book to add it to the list:</p>` +
+    top.map(t=>`<button class="genrerow" onclick='addFoundBook("${id}", ${JSON.stringify(t).replace(/'/g,"&#39;")})'>
+        <span>${escapeHtml(t)}</span><span class="gcount">＋</span></button>`).join('');
+}
+function addFoundBook(id, title){
+  const s=getSeries(id); if(!s) return;
+  if(s.books.some(b=>b.title.toLowerCase()===String(title).toLowerCase())){ toast('Already in the list'); return; }
+  s.books.push({ title:String(title), have: ownsTitle(title) });
+  save(); renderSeries();
+  // refresh the open sheet but keep the found-list visible
+  openSeries(id);
+  toast('Added ✓');
+}
 
 /* =======================================================================
    INIT
    ======================================================================= */
-function renderAll(){ renderLibrary(); renderWish(); updateCount(); }
+function renderAll(){ renderLibrary(); renderWish(); renderSeries(); updateCount(); }
 renderAll();
 
 /* Register service worker for offline + home-screen install.
