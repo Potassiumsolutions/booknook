@@ -861,9 +861,16 @@ document.addEventListener('DOMContentLoaded', ()=>{});
 function renderAll(){ renderLibrary(); renderWish(); updateCount(); }
 renderAll();
 
-/* Register service worker for offline + home-screen install */
+/* Register service worker for offline + home-screen install.
+   Also auto-reload once when a new version takes over, so updates show up. */
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  let refreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(refreshed) return; refreshed = true; location.reload();
+  });
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{ try{ reg.update(); }catch(e){} }).catch(()=>{});
+  });
 }
 </script>
 </body>

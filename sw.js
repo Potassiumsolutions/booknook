@@ -1,5 +1,11 @@
-/* Mason's Book Nook — service worker (app-shell cache, network for book APIs) */
-const CACHE = 'booknook-v5';
+/* Mason's Book Nook — service worker
+   Strategy:
+   • The app page (HTML) is NETWORK-FIRST — always fetch the newest version when
+     online, fall back to the saved copy only when offline. (Fixes "won't update".)
+   • Other files (icons, scanner, manifest) are stale-while-revalidate — shown
+     instantly from cache, quietly refreshed in the background for next time.
+*/
+const CACHE = 'booknook-v6';
 const SHELL = [
   './',
   './index.html',
@@ -24,15 +30,34 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;   // book APIs + covers always go to network
 
-  // Only cache our own app files. Book lookups + cover images always go to the network.
-  if (url.origin !== self.location.origin) return;
+  const isHTML = req.mode === 'navigate' ||
+                 (req.headers.get('accept') || '').includes('text/html');
 
+  if (isHTML) {
+    // NETWORK-FIRST: get the freshest app, fall back to cache when offline.
+    e.respondWith(
+      fetch(req, { cache: 'no-store' })
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put('./index.html', copy)).catch(()=>{});
+          return res;
+        })
+        .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // STALE-WHILE-REVALIDATE for everything else.
   e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(req, copy)).catch(()=>{});
-      return res;
-    }).catch(() => caches.match('./index.html')))
+    caches.match(req).then(hit => {
+      const net = fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(()=>{});
+        return res;
+      }).catch(() => hit);
+      return hit || net;
+    })
   );
 });
