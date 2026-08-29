@@ -231,6 +231,7 @@
       <select id="seriesFilter"><option value="">All series</option></select>
     </div>
     <button class="btn ghost sm genrebtn" id="genreListBtn">🏷️ See all my genres</button>
+    <button class="btn ghost sm" id="shareBtn" style="width:100%;margin-bottom:12px">👥 Share my library</button>
     <button class="btn ghost sm" id="trashBtnLib" style="width:100%;margin-bottom:12px;display:none">🗑️ Recently Deleted</button>
     <div id="libList"></div>
   </section>
@@ -285,7 +286,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v23</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v24</span></div>
 </main>
 
 <nav>
@@ -331,6 +332,90 @@ function save(){
   updateCount();
 }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+/* ---- Share a library with friends (via a link — no server needed) ---- */
+function copyText(txt){
+  try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt); return true; } }catch(e){}
+  try{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); return true; }catch(e){}
+  return false;
+}
+function makeShareLink(){
+  const mini = library.map(b=>({t:b.title, a:b.author, y:b.year, g:b.genre, s:b.series, i:b.isbn}));
+  const json = JSON.stringify({ v:1, books:mini });
+  const code = encodeURIComponent(btoa(unescape(encodeURIComponent(json))));
+  return location.origin + location.pathname + '#lib=' + code;
+}
+async function shareLibrary(){
+  if(!library.length){ toast('Add some books first, then share!'); return; }
+  const url = makeShareLink();
+  try{
+    if(navigator.share){ await navigator.share({ title:"My Book Nook library", text:"Here are the books in my library! Open this to see them:", url }); return; }
+  }catch(e){ if(e && e.name==='AbortError') return; }
+  const ok = copyText(url);
+  showShareSheet(url, ok);
+}
+function showShareSheet(url, copied){
+  const sheet=document.getElementById('detailSheet');
+  sheet.innerHTML = `<div class="grip"></div>
+    <div style="text-align:center;padding:8px 4px 2px">
+      <div style="font-size:46px">👥</div>
+      <h2 style="margin:10px 0 8px">Share your library</h2>
+      <p style="color:var(--muted);margin:0 0 14px">${copied?'Link copied! ✓ Paste it in a text or chat to a friend.':'Copy this link and send it to a friend:'}</p>
+    </div>
+    <div class="field"><input id="shareUrl" readonly value="${escapeHtml(url)}" onclick="this.select()"></div>
+    <button class="btn" onclick="if(copyText(document.getElementById('shareUrl').value)) toast('Copied ✓')">📋 Copy link</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">Done</button>`;
+  showModal();
+}
+
+/* Someone opened a shared link — show their books to add */
+function checkSharedLink(){
+  const m = (location.hash||'').match(/lib=([^&]+)/);
+  if(!m) return;
+  try{
+    const json = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+    const payload = JSON.parse(json);
+    if(payload && Array.isArray(payload.books)){
+      const books = payload.books.map(x=>({ title:x.t, author:x.a, year:x.y, genre:x.g, series:x.s, isbn:x.i }));
+      history.replaceState(null, '', location.pathname);   // clean the address bar
+      showSharedLibrary(books);
+    }
+  }catch(e){}
+}
+function showSharedLibrary(books){
+  window._shared = books;
+  const rows = books.map((b,i)=>{
+    const have = inLibrary(b);
+    return `<div class="book" style="cursor:default">
+        ${coverHtml(b)}
+        <div class="binfo">
+          <div class="t">${escapeHtml(b.title||'Untitled')}</div>
+          <div class="a">${escapeHtml(b.author||'Unknown author')}</div>
+          <div class="tags">${b.series?`<span class="tag series">📚 ${escapeHtml(b.series)}</span>`:''}${b.genre?`<span class="tag">${escapeHtml(b.genre)}</span>`:''}</div>
+        </div>
+        <button class="miniadd ${have?'have':'lib'}" onclick="addSharedBook(${i}, this)">${have?'✓ Have it':'＋ Add'}</button>
+      </div>`;
+  }).join('');
+  const sheet=document.getElementById('detailSheet');
+  sheet.innerHTML = `<div class="grip"></div>
+    <h2 style="text-align:center;margin:2px 0 4px">👥 Shared Library</h2>
+    <p style="text-align:center;color:var(--muted);margin:0 0 12px">A friend shared ${books.length} book${books.length===1?'':'s'} with you. Add any you want!</p>
+    <button class="btn gold" style="margin-bottom:12px" onclick="addAllShared()">➕ Add all to my Library</button>
+    ${rows}
+    <button class="btn ghost" style="margin-top:12px" onclick="closeDetail()">Close</button>`;
+  showModal();
+}
+function addSharedBook(i, btn){
+  const b = window._shared && window._shared[i]; if(!b) return;
+  if(addToLibrary({...b})){ if(btn){ btn.className='miniadd have'; btn.textContent='✓ Have it'; } }
+}
+function addAllShared(){
+  const books = window._shared || [];
+  let n=0; books.forEach(b=>{ if(addToLibrary({...b}, true)) n++; });
+  renderAll();
+  toast(n ? `Added ${n} book${n===1?'':'s'} 📚` : 'You already have those');
+  closeDetail();
+}
 
 /* ---------- Recently Deleted (undo / restore) ---------- */
 function pushTrash(kind, data){
@@ -1030,7 +1115,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1457,10 +1542,12 @@ function addFoundBook(id, title){
    ======================================================================= */
 document.getElementById('trashBtnLib').addEventListener('click', showTrash);
 document.getElementById('trashBtnSer').addEventListener('click', showTrash);
+document.getElementById('shareBtn').addEventListener('click', shareLibrary);
 
 function renderAll(){ renderLibrary(); renderWish(); renderSeries(); updateTrashButtons(); updateCount(); }
 renderAll();
 fixNonEnglishTitles();   // quietly convert any foreign book titles to English
+checkSharedLink();       // if opened from a friend's share link, show their books
 
 /* Register service worker for offline + home-screen install.
    Also auto-reload once when a new version takes over, so updates show up. */
