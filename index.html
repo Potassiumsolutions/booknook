@@ -645,11 +645,11 @@ async function lookupAnyCode(raw){
 /* Search for a book by an arbitrary barcode number (used for UPC / non-ISBN codes) */
 async function searchByCode(code){
   try{
-    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(code)}&maxResults=1`);
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(code)}&maxResults=1&langRestrict=en`);
     if(r.ok){ const j = await r.json(); if(j.items && j.items.length) return fromGoogle(j.items[0]); }
   }catch(e){}
   try{
-    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(code)}&limit=1&fields=title,author_name,first_publish_year,cover_i,isbn,subject`);
+    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(code)}&language=eng&limit=1&fields=title,author_name,first_publish_year,cover_i,isbn,subject`);
     if(r.ok){ const j = await r.json(); if(j.docs && j.docs.length) return fromOpenLibDoc(j.docs[0]); }
   }catch(e){}
   return null;
@@ -880,7 +880,7 @@ async function runFind(){
   let books = [];
   // 1) Open Library search (no key, no rate limit)
   try{
-    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24&fields=title,author_name,first_publish_year,cover_i,isbn,subject`);
+    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&language=eng&limit=24&fields=title,author_name,first_publish_year,cover_i,isbn,subject`);
     if(r.ok){
       const j = await r.json();
       books = (j.docs||[]).map(fromOpenLibDoc);
@@ -889,7 +889,7 @@ async function runFind(){
   // 2) Fallback to Google Books if Open Library gave nothing
   if(!books.length){
     try{
-      const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=24`);
+      const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=24&langRestrict=en`);
       if(r.ok){ const j = await r.json(); books = (j.items||[]).map(it=>fromGoogle(it)); }
     }catch(e){}
   }
@@ -1090,7 +1090,7 @@ async function findSeriesBooks(id){
   box.innerHTML=`<div class="loading"><div class="spinner"></div>Looking for books in “${escapeHtml(s.name)}”…</div>`;
   let titles=[];
   try{
-    const r=await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(s.name)}&limit=30&fields=title`);
+    const r=await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(s.name)}&language=eng&limit=30&fields=title`);
     if(r.ok){ const j=await r.json(); titles=(j.docs||[]).map(d=>d.title).filter(Boolean); }
   }catch(e){}
   // de-duplicate (case-insensitive), drop ones already in the list
