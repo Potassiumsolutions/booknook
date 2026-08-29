@@ -286,7 +286,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v24</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v25</span></div>
 </main>
 
 <nav>
@@ -1115,7 +1115,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1379,8 +1379,21 @@ function syncSeriesWithLibrary(){
   if(changed) localStorage.setItem(LS_SER, JSON.stringify(seriesSets));
   return changed;
 }
+/* Remove any non-English (Japanese/Chinese/etc.) book titles left in series
+   from before the English filter. Runs silently on every series render. */
+function stripForeignSeriesTitles(){
+  let changed=false;
+  seriesSets.forEach(s=>{
+    const before=s.books.length;
+    s.books = s.books.filter(b=> isLatinTitle(b.title));
+    if(s.books.length!==before) changed=true;
+  });
+  if(changed) localStorage.setItem(LS_SER, JSON.stringify(seriesSets));
+  return changed;
+}
 
 function renderSeries(){
+  stripForeignSeriesTitles();
   syncSeriesWithLibrary();
   const list = document.getElementById('seriesList');
   if(!seriesSets.length){
@@ -1427,6 +1440,7 @@ function createSeries(){
 }
 
 function openSeries(id){
+  stripForeignSeriesTitles();
   syncSeriesWithLibrary();
   const s = getSeries(id); if(!s) return;
   const have = s.books.filter(b=>b.have).length, tot = s.books.length;
