@@ -262,7 +262,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v13</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v14</span></div>
 </main>
 
 <nav>
@@ -578,15 +578,43 @@ function addToLibrary(book, silent){
   library.push({...book, id: uid(), dateAdded: Date.now()});
   save(); renderAll();
   if(!silent) toast(`Added "${book.title}" 📚`);
-  maybeBuildSeries(book);
+  // Run after the current click finishes (so the scan sheet closes first, then the series prompt opens).
+  if(!silent) setTimeout(()=>maybeBuildSeries(book), 0);
   return true;
 }
 
-/* Figure out the book's series (already known, or look it up) then build it. */
+/* After a book is added: if it belongs to a series, ASK before adding the series.
+   (If that series already exists, just check this book off — no need to ask again.) */
 async function maybeBuildSeries(book){
   let name = String(book.series||'').trim();
   if(!name){ try{ name = await detectSeriesName(book); }catch(e){} }
-  if(name) ensureSeriesFromBook({ ...book, series: name });
+  if(!name) return;
+  const existing = seriesSets.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  if(existing){ ensureSeriesFromBook({ ...book, series: name }); return; }
+  askAddSeries(book, name);
+}
+
+function askAddSeries(book, name){
+  window._pendingSeries = { book, name };
+  const sheet = document.getElementById('detailSheet');
+  sheet.innerHTML = `<div class="grip"></div>
+    <div style="text-align:center;padding:6px 4px 2px">
+      <div style="font-size:46px">🔖</div>
+      <h2 style="margin:10px 0 8px">Add this series?</h2>
+      <p style="margin:0 0 4px">“${escapeHtml(book.title)}” is part of the</p>
+      <p style="font-weight:800;color:var(--brand);font-size:20px;margin:0 0 12px">${escapeHtml(name)}</p>
+      <p style="color:var(--muted);margin:0 0 20px">Want a checklist of the whole series?<br>I'll add the books and check off the ones you have.</p>
+    </div>
+    <button class="btn" onclick="confirmBuildSeries()">🔖 Yes, add the series</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">No thanks</button>`;
+  detailModal.classList.add('show');
+}
+function confirmBuildSeries(){
+  const p = window._pendingSeries; if(!p){ closeDetail(); return; }
+  window._pendingSeries = null;
+  ensureSeriesFromBook({ ...p.book, series: p.name });
+  closeDetail();
+  goTo('series');
 }
 
 /* Look up which series a book belongs to, by finding its work record online.
