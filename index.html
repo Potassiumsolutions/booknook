@@ -278,7 +278,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v20</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v21</span></div>
 </main>
 
 <nav>
@@ -770,7 +770,7 @@ async function populateSeriesBooks(seriesId, name){
   let titles = [];
   try{
     const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(name)}&language=eng&limit=30&fields=title`);
-    if(r.ok){ const j = await r.json(); titles = (j.docs||[]).map(d=>d.title).filter(Boolean); }
+    if(r.ok){ const j = await r.json(); titles = (j.docs||[]).map(d=>d.title).filter(isLatinTitle); }
   }catch(e){}
   const seen = new Set(s.books.map(b=>normTitle(b.title)));
   let added = 0;
@@ -967,7 +967,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1212,6 +1212,13 @@ document.getElementById('newSeriesBtn').addEventListener('click', newSeries);
 
 function getSeries(id){ return seriesSets.find(s=>s.id===id); }
 function normTitle(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(); }
+/* True only for titles written in normal English/Latin letters — filters out
+   Japanese, Chinese, Korean, Russian, Arabic, Hebrew, etc. */
+function isLatinTitle(t){
+  if(!t) return false;
+  if(/[　-ヿ㐀-鿿가-힯Ѐ-ӿ؀-ۿ֐-׿＀-￯]/.test(t)) return false;
+  return /[a-zA-Z]/.test(t);
+}
 function ownsTitle(title){
   const t=normTitle(title);
   return !!t && library.some(b=>normTitle(b.title)===t);
@@ -1360,7 +1367,7 @@ async function findSeriesBooks(id){
   let titles=[];
   try{
     const r=await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(s.name)}&language=eng&limit=30&fields=title`);
-    if(r.ok){ const j=await r.json(); titles=(j.docs||[]).map(d=>d.title).filter(Boolean); }
+    if(r.ok){ const j=await r.json(); titles=(j.docs||[]).map(d=>d.title).filter(isLatinTitle); }
   }catch(e){}
   // de-duplicate (case-insensitive), drop ones already in the list
   const seen=new Set(s.books.map(b=>b.title.toLowerCase()));
