@@ -1,5 +1,5 @@
 /* Mason's Book Nook — service worker (app-shell cache, network for book APIs) */
-const CACHE = 'booknook-v1';
+const CACHE = 'booknook-v2';
 const SHELL = [
   './',
   './index.html',

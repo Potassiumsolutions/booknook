@@ -599,56 +599,110 @@ function confirmAdd(book){ addToLibrary(book); closeDetail(); }
 function confirmWish(book){ addToWish(book); closeDetail(); }
 
 /* =======================================================================
-   CAMERA + BARCODE SCANNING  (native BarcodeDetector on Android Chrome)
+   CAMERA + BARCODE SCANNING
+   Works two ways so it runs on as many phones as possible:
+     A) native BarcodeDetector  (Chrome on Android)
+     B) ZXing library fallback  (other browsers / iPhone Safari)
    ======================================================================= */
 let stream=null, detector=null, scanning=false, rafId=null, lastCode=null, lastTime=0;
+let zxingReader=null, usingZXing=false, zxingLoading=null;
 const video = document.getElementById('scanVideo');
 const scanToggle = document.getElementById('scanToggle');
 const scanHint = document.getElementById('scanHint');
 
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
+function hint(msg){ scanHint.textContent = msg; }
+
+function cameraErrorMessage(err){
+  const n = err && err.name || '';
+  if(n==='NotAllowedError' || n==='SecurityError')
+    return '📷 Camera is blocked. Tap the 🔒 (or ⓘ) next to the web address at the top, turn Camera ON, then tap Start Camera again.';
+  if(n==='NotFoundError' || n==='DevicesNotFoundError')
+    return 'No camera was found on this device. You can still type the ISBN below.';
+  if(n==='NotReadableError' || n==='TrackStartError')
+    return 'The camera is busy in another app. Close other camera apps and try again.';
+  if(location.protocol!=='https:' && location.hostname!=='localhost')
+    return 'The camera only works on the online (https) version. Open the app link, not a saved file.';
+  return 'Could not open the camera. You can type the ISBN below instead.';
+}
+
 async function startCamera(){
-  if(!('BarcodeDetector' in window)){
-    scanHint.textContent = 'This phone can’t auto-scan — type the ISBN below instead.';
-    toast('Auto-scan not supported here — use the ISBN box');
-    return;
+  hint('Starting camera…');
+  scanToggle.textContent = '⏳ Opening…';
+
+  // ---- Path A: native BarcodeDetector ----
+  if('BarcodeDetector' in window){
+    try{
+      detector = detector || new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','isbn','qr_code']});
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      video.srcObject = stream; await video.play();
+      usingZXing = false; scanning = true;
+      scanToggle.textContent = '⏹️ Stop Camera';
+      hint('Point at the barcode and hold steady…');
+      scanLoop();
+      return;
+    }catch(e){
+      // If it was a permission/hardware problem, report it. Otherwise fall through to ZXing.
+      if(e && (e.name==='NotAllowedError' || e.name==='SecurityError' || e.name==='NotFoundError' || e.name==='NotReadableError')){
+        hint(cameraErrorMessage(e)); scanToggle.textContent='📷 Start Camera'; return;
+      }
+    }
   }
+
+  // ---- Path B: ZXing fallback ----
   try{
-    detector = detector || new BarcodeDetector({formats:['ean_13','ean_8','upc_a','isbn','qr_code']});
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    video.srcObject = stream; await video.play();
-    scanning = true; scanToggle.textContent = '⏹️ Stop Camera';
-    scanHint.textContent = 'Hold steady over the barcode…';
-    scanLoop();
+    await ensureZXing();
+    zxingReader = zxingReader || new ZXing.BrowserMultiFormatReader();
+    usingZXing = true; scanning = true;
+    scanToggle.textContent = '⏹️ Stop Camera';
+    hint('Point at the barcode and hold steady…');
+    await zxingReader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } }, video,
+      (result, err)=>{ if(result) onCodeFound(result.getText()); }
+    );
   }catch(e){
-    scanHint.textContent = 'Camera blocked. Allow camera, or type the ISBN below.';
-    toast('Could not open camera');
+    scanning=false; scanToggle.textContent='📷 Start Camera';
+    hint(cameraErrorMessage(e));
   }
 }
+
+function ensureZXing(){
+  if(window.ZXing) return Promise.resolve();
+  if(zxingLoading) return zxingLoading;
+  zxingLoading = new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src='zxing.js';
+    s.onload=res; s.onerror=()=>rej(new Error('load')); document.head.appendChild(s);
+  });
+  return zxingLoading;
+}
+
 function stopCamera(){
   scanning = false;
   if(rafId) cancelAnimationFrame(rafId);
+  if(usingZXing && zxingReader){ try{ zxingReader.reset(); }catch(e){} }
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   video.srcObject=null;
   scanToggle.textContent = '📷 Start Camera';
 }
+
+async function onCodeFound(raw){
+  const code = String(raw||'').replace(/[^0-9Xx]/g,'');
+  const now = Date.now();
+  if(!(code && code.length>=10 && (code!==lastCode || now-lastTime>4000))) return;
+  lastCode=code; lastTime=now;
+  if(navigator.vibrate) navigator.vibrate(80);
+  hint('Found it! Looking up…');
+  const book = await lookupISBN(code);
+  if(book) showScanResult(book);
+  else hint('Hmm, no match. Try again, or type the ISBN below.');
+}
+
 async function scanLoop(){
-  if(!scanning) return;
+  if(!scanning || usingZXing) return;
   try{
     const codes = await detector.detect(video);
-    if(codes.length){
-      const code = codes[0].rawValue.replace(/[^0-9Xx]/g,'');
-      const now = Date.now();
-      if(code && code.length>=10 && (code!==lastCode || now-lastTime>4000)){
-        lastCode=code; lastTime=now;
-        if(navigator.vibrate) navigator.vibrate(80);
-        scanHint.textContent = 'Found it! Looking up…';
-        const book = await lookupISBN(code);
-        if(book) showScanResult(book);
-        else scanHint.textContent = 'Not found — try again or type the ISBN';
-      }
-    }
+    if(codes.length) onCodeFound(codes[0].rawValue);
   }catch(e){}
   rafId = requestAnimationFrame(scanLoop);
 }
