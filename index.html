@@ -285,7 +285,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v22</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v23</span></div>
 </main>
 
 <nav>
@@ -841,12 +841,15 @@ async function lookupISBN(isbn){
       if(ed.authors && ed.authors[0]){
         try{ const a = await (await fetch(`https://openlibrary.org${ed.authors[0].key}.json`)).json(); book.author = a.name||''; }catch(e){}
       }
-      // Most editions don't list the series — the WORK record does. Follow it.
-      if(!book.series && ed.works && ed.works[0]){
+      // The WORK record holds the series AND the English title — follow it when
+      // we need the series, or when this edition's title isn't in English.
+      if(ed.works && ed.works[0] && (!book.series || !isLatinTitle(book.title))){
         try{
           const w = await (await fetch(`https://openlibrary.org${ed.works[0].key}.json`)).json();
-          book.series = await seriesNameFromWork(w);
+          if(!book.series) book.series = await seriesNameFromWork(w);
           if(!book.genre && w.subjects) book.genre = pickGenre(w.subjects);
+          // Prefer the English work title when this edition's title is another language
+          if(w.title && !isLatinTitle(book.title) && isLatinTitle(w.title)) book.title = w.title;
         }catch(e){}
       }
     }
@@ -942,6 +945,34 @@ async function seriesNameFromWork(w){
   return '';
 }
 
+/* Find the English title for a book's ISBN (edition title, else the work title). */
+async function fetchEnglishTitle(isbn){
+  isbn = (isbn||'').replace(/[^0-9Xx]/g,''); if(isbn.length<10) return '';
+  try{
+    const ed = await (await fetch(`https://openlibrary.org/isbn/${isbn}.json`)).json();
+    if(isLatinTitle(ed.title)) return ed.title;
+    if(ed.works && ed.works[0]){
+      const w = await (await fetch(`https://openlibrary.org${ed.works[0].key}.json`)).json();
+      if(isLatinTitle(w.title)) return w.title;
+    }
+  }catch(e){}
+  return '';
+}
+
+/* Background pass: turn any non-English book title in the Library/Wish List into
+   English. Runs quietly on load; does nothing if everything is already English. */
+async function fixNonEnglishTitles(){
+  const targets = [...library, ...wishlist].filter(b => b.isbn && b.title && !isLatinTitle(b.title));
+  if(!targets.length) return;
+  let changed = false, n = 0;
+  for(const b of targets){
+    if(n++ > 20) break;
+    const eng = await fetchEnglishTitle(b.isbn);
+    if(eng && isLatinTitle(eng) && eng !== b.title){ b.title = eng; changed = true; }
+  }
+  if(changed){ save(); renderAll(); }
+}
+
 /* ---- Scan tab: manual ISBN entry ---- */
 document.getElementById('isbnGo').addEventListener('click', doIsbnLookup);
 document.getElementById('isbnInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doIsbnLookup(); });
@@ -999,7 +1030,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v22';
+const APP_VERSION = 'v23';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1429,6 +1460,7 @@ document.getElementById('trashBtnSer').addEventListener('click', showTrash);
 
 function renderAll(){ renderLibrary(); renderWish(); renderSeries(); updateTrashButtons(); updateCount(); }
 renderAll();
+fixNonEnglishTitles();   // quietly convert any foreign book titles to English
 
 /* Register service worker for offline + home-screen install.
    Also auto-reload once when a new version takes over, so updates show up. */
