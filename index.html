@@ -262,7 +262,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v13</span></div>
 </main>
 
 <nav>
@@ -578,8 +578,35 @@ function addToLibrary(book, silent){
   library.push({...book, id: uid(), dateAdded: Date.now()});
   save(); renderAll();
   if(!silent) toast(`Added "${book.title}" 📚`);
-  if(book.series && String(book.series).trim()) ensureSeriesFromBook(book);
+  maybeBuildSeries(book);
   return true;
+}
+
+/* Figure out the book's series (already known, or look it up) then build it. */
+async function maybeBuildSeries(book){
+  let name = String(book.series||'').trim();
+  if(!name){ try{ name = await detectSeriesName(book); }catch(e){} }
+  if(name) ensureSeriesFromBook({ ...book, series: name });
+}
+
+/* Look up which series a book belongs to, by finding its work record online.
+   Only trusts a match whose title is really the same book. */
+async function detectSeriesName(book){
+  const title = book.title||''; if(!title) return '';
+  const q = title + (book.author ? ' ' + book.author : '');
+  try{
+    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&language=eng&limit=5&fields=title,key`);
+    if(r.ok){
+      const j = await r.json();
+      for(const d of (j.docs||[])){
+        if(!d.key || normTitle(d.title)!==normTitle(title)) continue;
+        const w = await (await fetch(`https://openlibrary.org${d.key}.json`)).json();
+        const name = await seriesNameFromWork(w);
+        if(name) return name;
+      }
+    }
+  }catch(e){}
+  return '';
 }
 
 /* When you add a book that belongs to a series, make sure that whole series
