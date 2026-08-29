@@ -222,6 +222,7 @@
       <select id="seriesFilter"><option value="">All series</option></select>
     </div>
     <button class="btn ghost sm genrebtn" id="genreListBtn">🏷️ See all my genres</button>
+    <button class="btn ghost sm" id="trashBtnLib" style="width:100%;margin-bottom:12px;display:none">🗑️ Recently Deleted</button>
     <div id="libList"></div>
   </section>
 
@@ -271,10 +272,11 @@
   <!-- ===== SERIES ===== -->
   <section class="view" id="view-series">
     <button class="btn gold" id="newSeriesBtn" style="margin-bottom:12px">➕ Start a New Series</button>
+    <button class="btn ghost sm" id="trashBtnSer" style="width:100%;margin-bottom:12px;display:none">🗑️ Recently Deleted</button>
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v16</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v17</span></div>
 </main>
 
 <nav>
@@ -301,19 +303,88 @@
 const LS_LIB = 'mbn_library';
 const LS_WISH = 'mbn_wishlist';
 const LS_SER = 'mbn_series';
+const LS_TRASH = 'mbn_trash';
 
 let library  = load(LS_LIB);
 let wishlist = load(LS_WISH);
 let seriesSets = load(LS_SER);
+let trash = load(LS_TRASH);   // recently deleted: [{tid, kind:'lib'|'wish'|'series', data, when}]
 
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)) || []; }catch(e){ return []; } }
-function save(){ localStorage.setItem(LS_LIB, JSON.stringify(library)); localStorage.setItem(LS_WISH, JSON.stringify(wishlist)); localStorage.setItem(LS_SER, JSON.stringify(seriesSets)); updateCount(); }
+function save(){
+  localStorage.setItem(LS_LIB, JSON.stringify(library));
+  localStorage.setItem(LS_WISH, JSON.stringify(wishlist));
+  localStorage.setItem(LS_SER, JSON.stringify(seriesSets));
+  localStorage.setItem(LS_TRASH, JSON.stringify(trash));
+  updateCount();
+}
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+/* ---------- Recently Deleted (undo / restore) ---------- */
+function pushTrash(kind, data){
+  const tid = uid();
+  trash.push({ tid, kind, data, when: Date.now() });
+  if(trash.length > 50) trash = trash.slice(trash.length - 50);
+  return tid;
+}
+function restoreItem(tid){
+  const i = trash.findIndex(t=>t.tid===tid); if(i<0) return;
+  const it = trash[i];
+  if(it.kind==='series'){ if(!seriesSets.some(s=>s.id===it.data.id)) seriesSets.push(it.data); }
+  else { const arr = it.kind==='wish' ? wishlist : library; if(!arr.some(b=>b.id===it.data.id)) arr.push(it.data); }
+  trash.splice(i,1); save(); renderAll();
+  hideToast();
+  if(document.getElementById('detailModal').classList.contains('show')) showTrash();
+  toast('Brought it back ✓');
+}
+function updateTrashButtons(){
+  const n = trash.length;
+  ['trashBtnLib','trashBtnSer'].forEach(id=>{
+    const el = document.getElementById(id); if(!el) return;
+    el.style.display = n ? 'block' : 'none';
+    el.textContent = `🗑️ Recently Deleted (${n})`;
+  });
+}
+function showTrash(){
+  const sheet = document.getElementById('detailSheet');
+  if(!trash.length){
+    sheet.innerHTML = `<div class="grip"></div>
+      <div class="empty"><div class="big">🗑️</div><div>Nothing here. Deleted books and series show up here so you can bring them back.</div></div>
+      <button class="btn ghost" onclick="closeDetail()">Close</button>`;
+    detailModal.classList.add('show'); return;
+  }
+  const items = trash.slice().sort((a,b)=>b.when-a.when);
+  const rows = items.map(it=>{
+    const name = it.kind==='series' ? ('🔖 '+it.data.name) : it.data.title;
+    const label = it.kind==='series' ? 'series' : (it.kind==='wish' ? 'wish list' : 'library');
+    return `<div class="genrerow" style="cursor:default">
+        <span style="min-width:0">
+          <div style="font-weight:700;word-break:break-word">${escapeHtml(name)}</div>
+          <div style="font-size:12px;color:var(--muted)">was in ${label}</div>
+        </span>
+        <button class="miniadd lib" style="flex:0 0 auto" onclick="restoreItem('${it.tid}')">↩️ Bring back</button>
+      </div>`;
+  }).join('');
+  sheet.innerHTML = `<div class="grip"></div>
+    <h2 style="text-align:center;margin:2px 0 4px">🗑️ Recently Deleted</h2>
+    <p style="text-align:center;color:var(--muted);margin:0 0 14px">Tap "Bring back" to restore it. Newest first.</p>
+    ${rows}
+    <button class="btn ghost" style="margin-top:12px" onclick="closeDetail()">Close</button>`;
+  detailModal.classList.add('show');
+}
 
 /* ---------- helpers ---------- */
 function sortKey(title){ return (title||'').toLowerCase().replace(/^(the|a|an)\s+/,'').trim(); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1900); }
+function toast(msg){ const t=document.getElementById('toast'); t.style.pointerEvents='none'; t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1900); }
+function hideToast(){ const t=document.getElementById('toast'); t.classList.remove('show'); t.style.pointerEvents='none'; }
+function showUndoToast(msg, tid){
+  const t=document.getElementById('toast');
+  t.innerHTML = `${escapeHtml(msg)} &nbsp;<span id="undoBtn" style="text-decoration:underline;font-weight:800">↩️ Undo</span>`;
+  t.style.pointerEvents='auto'; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>{ t.classList.remove('show'); t.style.pointerEvents='none'; }, 6000);
+  const u=document.getElementById('undoBtn'); if(u) u.onclick=()=>restoreItem(tid);
+}
 function coverHtml(b){
   if(b.cover) return `<img src="${b.cover}" class="cover" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover',textContent:'📖'}))">`;
   return `<div class="cover">📖</div>`;
@@ -599,7 +670,10 @@ function askDelete(id, where){
 function deleteBook(id, where){
   const arr = where==='lib' ? library : wishlist;
   const i = arr.findIndex(x=>x.id===id); if(i<0) return;
-  arr.splice(i,1); save(); renderAll(); closeDetail(); toast('Removed');
+  const [b] = arr.splice(i,1);
+  const tid = pushTrash(where, b);
+  save(); renderAll(); closeDetail();
+  showUndoToast(`Removed "${b.title}"`, tid);
 }
 
 /* =======================================================================
@@ -891,7 +965,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1271,7 +1345,10 @@ function askDeleteSeries(id){
 }
 function deleteSeries(id){
   const i=seriesSets.findIndex(s=>s.id===id); if(i<0) return;
-  seriesSets.splice(i,1); save(); renderSeries(); closeDetail(); toast('Series deleted');
+  const [s] = seriesSets.splice(i,1);
+  const tid = pushTrash('series', s);
+  save(); renderSeries(); updateTrashButtons(); closeDetail();
+  showUndoToast(`Deleted "${s.name}"`, tid);
 }
 
 async function findSeriesBooks(id){
@@ -1306,7 +1383,10 @@ function addFoundBook(id, title){
 /* =======================================================================
    INIT
    ======================================================================= */
-function renderAll(){ renderLibrary(); renderWish(); renderSeries(); updateCount(); }
+document.getElementById('trashBtnLib').addEventListener('click', showTrash);
+document.getElementById('trashBtnSer').addEventListener('click', showTrash);
+
+function renderAll(){ renderLibrary(); renderWish(); renderSeries(); updateTrashButtons(); updateCount(); }
 renderAll();
 
 /* Register service worker for offline + home-screen install.
