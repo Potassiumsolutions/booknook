@@ -146,6 +146,16 @@
   }
   @keyframes up{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
   .sheet .grip{width:44px; height:5px; background:#d8cae8; border-radius:3px; margin:0 auto 14px}
+  /* Single book page (view mode) */
+  .bookpage{text-align:center; padding:4px 0 8px}
+  .bookpage .cover{display:inline-flex; width:128px; height:182px; font-size:54px; margin:0 auto 14px; box-shadow:var(--shadow)}
+  .bp-title{margin:0 0 5px; font-size:22px; line-height:1.25}
+  .bp-author{color:var(--muted); font-size:15px}
+  .infobox{background:#fff; border:1px solid var(--line); border-radius:14px; padding:2px 14px; margin:6px 0 14px}
+  .inforow{display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line)}
+  .inforow:last-child{border-bottom:none}
+  .inforow .ik{font-weight:600; font-size:14px}
+  .inforow .iv{font-weight:800; text-align:right; word-break:break-word; color:var(--brand)}
   .detail-top{display:flex; gap:14px; margin-bottom:14px}
   .detail-top .cover{width:92px; height:132px; font-size:40px}
   .detail-top h2{margin:0 0 6px; font-size:20px; line-height:1.2}
@@ -264,7 +274,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v15</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v16</span></div>
 </main>
 
 <nav>
@@ -501,21 +511,22 @@ function openDetail(id, where){
   const b = arr.find(x=>x.id===id);
   if(!b) return;
   const sheet = document.getElementById('detailSheet');
+  const row = (icon,label,val)=> val ? `<div class="inforow"><span class="ik">${icon} ${label}</span><span class="iv">${escapeHtml(String(val))}</span></div>` : '';
+  const noInfo = !b.year && !b.genre && !b.series;
   sheet.innerHTML = `
     <div class="grip"></div>
-    <div class="detail-top">
+    <div class="bookpage">
       ${coverHtml(b)}
-      <div>
-        <h2>${escapeHtml(b.title)}</h2>
-        <div class="by">by ${escapeHtml(b.author||'Unknown author')}</div>
-      </div>
+      <h2 class="bp-title">${escapeHtml(b.title)}</h2>
+      <div class="bp-author">by ${escapeHtml(b.author||'Unknown author')}</div>
     </div>
-    <div class="field"><label>Title</label><input id="d_title" value="${escapeHtml(b.title)}"></div>
-    <div class="field"><label>Author</label><input id="d_author" value="${escapeHtml(b.author||'')}"></div>
-    <div class="field"><label>Year Made</label><input id="d_year" value="${escapeHtml(String(b.year||''))}"></div>
-    <div class="field"><label>Genre</label><input id="d_genre" value="${escapeHtml(b.genre||'')}"></div>
-    <div class="field"><label>Series</label><input id="d_series" value="${escapeHtml(b.series||'')}"></div>
-    <button class="btn ghost" onclick="saveEdits('${id}','${where}')">💾 Save changes</button>
+    <div class="infobox">
+      ${row('📅','Year made', b.year)}
+      ${row('🏷️','Genre', b.genre)}
+      ${row('🔖','Series', b.series)}
+      ${noInfo ? '<div class="inforow"><span class="ik" style="color:var(--muted)">No extra info yet — tap Edit to add some</span></div>' : ''}
+    </div>
+    <button class="btn ghost" onclick="editDetail('${id}','${where}')">✏️ Edit details</button>
     <div class="btnrow">
       ${where==='lib'
         ? `<button class="btn wish" onclick="moveBook('${id}','lib','wish')">⭐ Move to Wish List</button>`
@@ -529,6 +540,25 @@ function openDetail(id, where){
   detailModal.classList.add('show');
 }
 
+/* The edit form (reached from the book page's ✏️ Edit button) */
+function editDetail(id, where){
+  const arr = where==='lib' ? library : wishlist;
+  const b = arr.find(x=>x.id===id); if(!b) return;
+  const sheet = document.getElementById('detailSheet');
+  sheet.innerHTML = `
+    <div class="grip"></div>
+    <h2 style="text-align:center;margin:2px 0 14px">✏️ Edit Book</h2>
+    <div class="field"><label>Title</label><input id="d_title" value="${escapeHtml(b.title)}"></div>
+    <div class="field"><label>Author</label><input id="d_author" value="${escapeHtml(b.author||'')}"></div>
+    <div class="field"><label>Year Made</label><input id="d_year" value="${escapeHtml(String(b.year||''))}"></div>
+    <div class="field"><label>Genre</label><input id="d_genre" value="${escapeHtml(b.genre||'')}"></div>
+    <div class="field"><label>Series</label><input id="d_series" value="${escapeHtml(b.series||'')}"></div>
+    <button class="btn" onclick="saveEdits('${id}','${where}')">💾 Save changes</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openDetail('${id}','${where}')">Cancel</button>
+  `;
+  detailModal.classList.add('show');
+}
+
 function saveEdits(id, where){
   const arr = where==='lib' ? library : wishlist;
   const b = arr.find(x=>x.id===id); if(!b) return;
@@ -537,7 +567,7 @@ function saveEdits(id, where){
   b.year   = document.getElementById('d_year').value.trim();
   b.genre  = document.getElementById('d_genre').value.trim();
   b.series = document.getElementById('d_series').value.trim();
-  save(); renderAll(); closeDetail(); toast('Saved ✓');
+  save(); renderAll(); openDetail(id, where); toast('Saved ✓');
 }
 function moveBook(id, from, to){
   const src = from==='lib' ? library : wishlist;
@@ -861,7 +891,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
