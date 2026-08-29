@@ -67,6 +67,13 @@
   }
 
   /* ---- Book cards ---- */
+  .genrebtn{width:100%; margin-bottom:12px}
+  .genrerow{display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left;
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:8px;
+    font-size:16px; font-weight:600; color:var(--ink); cursor:pointer}
+  .genrerow:active{transform:scale(.99)}
+  .genrerow.all{background:#f5efff; border-color:#e0d2f5}
+  .gcount{background:#f0e9f8; color:var(--brand); border-radius:999px; padding:3px 12px; font-size:14px; font-weight:800; flex:0 0 auto}
   .letter{font-weight:800; color:var(--brand); margin:14px 4px 6px; font-size:15px; letter-spacing:1px}
   .book{
     display:flex; gap:12px; background:var(--panel); border:1px solid var(--line);
@@ -188,6 +195,7 @@
       <select id="genreFilter"><option value="">All genres</option></select>
       <select id="seriesFilter"><option value="">All series</option></select>
     </div>
+    <button class="btn ghost sm genrebtn" id="genreListBtn">🏷️ See all my genres</button>
     <div id="libList"></div>
   </section>
 
@@ -310,10 +318,13 @@ const seriesFilter = document.getElementById('seriesFilter');
 function refreshFilters(){
   const genres = [...new Set(library.map(b=>b.genre).filter(Boolean))].sort();
   const series = [...new Set(library.map(b=>b.series).filter(Boolean))].sort();
+  const hasNoGenre = library.some(b=>!(b.genre||'').trim());
   const keepG = genreFilter.value, keepS = seriesFilter.value;
-  genreFilter.innerHTML = '<option value="">All genres</option>' + genres.map(g=>`<option>${escapeHtml(g)}</option>`).join('');
+  genreFilter.innerHTML = '<option value="">All genres</option>'
+    + genres.map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('')
+    + (hasNoGenre ? '<option value="__none__">No genre yet</option>' : '');
   seriesFilter.innerHTML = '<option value="">All series</option>' + series.map(s=>`<option>${escapeHtml(s)}</option>`).join('');
-  if(genres.includes(keepG)) genreFilter.value = keepG;
+  if(genres.includes(keepG) || keepG==='__none__') genreFilter.value = keepG;
   if(series.includes(keepS)) seriesFilter.value = keepS;
 }
 
@@ -324,7 +335,7 @@ function renderLibrary(){
   const list = document.getElementById('libList');
 
   let books = library.filter(b=>{
-    if(gf && b.genre!==gf) return false;
+    if(gf){ if(gf==='__none__'){ if((b.genre||'').trim()) return false; } else if(b.genre!==gf) return false; }
     if(sf && b.series!==sf) return false;
     if(q){
       const hay = `${b.title} ${b.author} ${b.genre} ${b.series}`.toLowerCase();
@@ -349,6 +360,56 @@ function renderLibrary(){
     html += bookCard(b);
   });
   list.innerHTML = html;
+}
+
+/* ---- "See all my genres" overview ---- */
+const NONE_GENRE = 'No genre yet';
+document.getElementById('genreListBtn').addEventListener('click', showGenreList);
+
+function showGenreList(){
+  const sheet = document.getElementById('detailSheet');
+  if(!library.length){
+    sheet.innerHTML = `<div class="grip"></div>
+      <div class="empty"><div class="big">🏷️</div>
+      <div>No genres yet — add some books first and their genres will show up here.</div></div>
+      <button class="btn ghost" style="margin-top:10px" onclick="closeDetail()">Close</button>`;
+    detailModal.classList.add('show'); return;
+  }
+  const counts = {};
+  library.forEach(b=>{ const g=(b.genre||'').trim()||NONE_GENRE; counts[g]=(counts[g]||0)+1; });
+  // real genres A–Z, with "No genre yet" always last
+  const genres = Object.keys(counts).filter(g=>g!==NONE_GENRE).sort((a,b)=>a.localeCompare(b));
+  if(counts[NONE_GENRE]) genres.push(NONE_GENRE);
+
+  const rows = genres.map(g=>
+    `<button class="genrerow" data-genre="${escapeHtml(g)}">
+       <span>${g===NONE_GENRE?'❔ ':''}${escapeHtml(g)}</span>
+       <span class="gcount">${counts[g]}</span>
+     </button>`).join('');
+
+  sheet.innerHTML = `<div class="grip"></div>
+    <h2 style="text-align:center;margin:4px 0 4px">🏷️ Your Genres</h2>
+    <p style="text-align:center;color:var(--muted);margin:0 0 14px">
+      ${genres.filter(g=>g!==NONE_GENRE).length} genre${genres.filter(g=>g!==NONE_GENRE).length===1?'':'s'} in your library — tap one to see those books</p>
+    <button class="genrerow all" data-genre="__all__"><span>📚 All books</span><span class="gcount">${library.length}</span></button>
+    ${rows}
+    <button class="btn ghost" style="margin-top:14px" onclick="closeDetail()">Close</button>`;
+
+  sheet.querySelectorAll('.genrerow').forEach(el=>{
+    el.addEventListener('click', ()=> filterByGenre(el.dataset.genre));
+  });
+  detailModal.classList.add('show');
+}
+
+function filterByGenre(g){
+  if(g==='__all__') genreFilter.value = '';
+  else if(g===NONE_GENRE) genreFilter.value = '__none__';
+  else genreFilter.value = g;
+  renderLibrary();
+  closeDetail();
+  goTo('library');
+  document.querySelector('main').scrollTo(0,0);
+  toast(g==='__all__' ? 'Showing all books' : `Showing: ${g}`);
 }
 
 function bookCard(b){
