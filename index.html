@@ -646,6 +646,14 @@ async function lookupISBN(isbn){
       if(ed.authors && ed.authors[0]){
         try{ const a = await (await fetch(`https://openlibrary.org${ed.authors[0].key}.json`)).json(); book.author = a.name||''; }catch(e){}
       }
+      // Most editions don't list the series — the WORK record does. Follow it.
+      if(!book.series && ed.works && ed.works[0]){
+        try{
+          const w = await (await fetch(`https://openlibrary.org${ed.works[0].key}.json`)).json();
+          book.series = await seriesNameFromWork(w);
+          if(!book.genre && w.subjects) book.genre = pickGenre(w.subjects);
+        }catch(e){}
+      }
     }
   }catch(e){}
 
@@ -723,6 +731,20 @@ function pickGenre(subjects){
 function cleanSeries(s){
   // Open Library series like "Harry Potter ; 1"  ->  "Harry Potter"
   return String(s).split(/[;#(]/)[0].replace(/\s+\d+\s*$/,'').trim();
+}
+/* A work's series can be a plain string, or {position, series:{key}} pointing
+   at a series record whose .name we fetch. Returns a clean series name or ''. */
+async function seriesNameFromWork(w){
+  const s = w && w.series && w.series[0];
+  if(!s) return '';
+  if(typeof s === 'string') return cleanSeries(s);
+  if(s.series && s.series.key){
+    try{
+      const sr = await (await fetch(`https://openlibrary.org${s.series.key}.json`)).json();
+      return cleanSeries(sr.name||'');
+    }catch(e){}
+  }
+  return '';
 }
 
 /* ---- Scan tab: manual ISBN entry ---- */
