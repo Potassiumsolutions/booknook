@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<!--
+  Mason's Book Nook — a personal digital library
+  Made by Mason Teibel
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#5b3a91">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Book Nook">
+<title>Mason's Book Nook</title>
+<style>
+  :root{
+    --bg:#faf6ef; --panel:#ffffff; --ink:#2b2233; --muted:#8b7f96;
+    --brand:#5b3a91; --brand2:#8a5cd1; --accent:#f0a500; --gold:#f6c945;
+    --line:#e7ddef; --shadow:0 6px 18px rgba(60,30,100,.12);
+    --ok:#2e9e6b; --wish:#e8734a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%}
+  body{
+    font-family:"Segoe UI",system-ui,Arial,sans-serif;
+    background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; min-height:100dvh;
+  }
+  /* ---- Header ---- */
+  header{
+    background:linear-gradient(135deg,var(--brand),var(--brand2));
+    color:#fff; padding:14px 16px calc(14px + env(safe-area-inset-top)) 16px;
+    padding-top:calc(14px + env(safe-area-inset-top));
+    text-align:center; box-shadow:var(--shadow); position:relative; z-index:3;
+  }
+  header h1{margin:0; font-size:22px; letter-spacing:.3px}
+  header .sub{font-size:12px; opacity:.85; margin-top:2px}
+  header .count{font-size:12px; opacity:.9; margin-top:4px}
+
+  main{flex:1; overflow-y:auto; padding:14px 14px 90px; -webkit-overflow-scrolling:touch}
+  .view{display:none; animation:fade .2s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0; transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---- Search + filters ---- */
+  .searchbar{position:relative; margin-bottom:10px}
+  .searchbar input{
+    width:100%; padding:13px 14px 13px 40px; font-size:16px; border-radius:14px;
+    border:2px solid var(--line); background:#fff; color:var(--ink); outline:none;
+  }
+  .searchbar input:focus{border-color:var(--brand2)}
+  .searchbar .mag{position:absolute; left:13px; top:12px; font-size:18px; opacity:.5}
+  .chips{display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:6px; scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{
+    flex:0 0 auto; padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600;
+    border:2px solid var(--line); background:#fff; color:var(--muted); white-space:nowrap; cursor:pointer;
+  }
+  .chip.active{background:var(--brand); border-color:var(--brand); color:#fff}
+  .filterrow{display:flex; gap:8px; margin-bottom:10px}
+  .filterrow select{
+    flex:1; padding:10px; border-radius:12px; border:2px solid var(--line); background:#fff;
+    font-size:14px; color:var(--ink); min-width:0;
+  }
+
+  /* ---- Book cards ---- */
+  .letter{font-weight:800; color:var(--brand); margin:14px 4px 6px; font-size:15px; letter-spacing:1px}
+  .book{
+    display:flex; gap:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:10px; margin-bottom:10px; box-shadow:var(--shadow); cursor:pointer;
+    align-items:center;
+  }
+  .book:active{transform:scale(.99)}
+  .cover{
+    width:52px; height:74px; border-radius:8px; flex:0 0 auto; object-fit:cover;
+    background:linear-gradient(135deg,#d9c9ef,#efe3ff); display:flex; align-items:center; justify-content:center;
+    font-size:26px; color:#7a5cb0; overflow:hidden;
+  }
+  .binfo{flex:1; min-width:0}
+  .binfo .t{font-weight:700; font-size:16px; line-height:1.2; margin-bottom:3px}
+  .binfo .a{font-size:13px; color:var(--muted); margin-bottom:4px}
+  .tags{display:flex; gap:5px; flex-wrap:wrap}
+  .tag{font-size:11px; padding:2px 8px; border-radius:999px; background:#f0e9f8; color:var(--brand); font-weight:600}
+  .tag.series{background:#fff2df; color:#b57400}
+  .tag.year{background:#e9f3ff; color:#2f6bbf}
+
+  .empty{text-align:center; color:var(--muted); padding:50px 20px}
+  .empty .big{font-size:52px; margin-bottom:10px}
+  .empty .btnlink{color:var(--brand); font-weight:700; cursor:pointer; text-decoration:underline}
+
+  /* ---- Buttons ---- */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:14px 18px; border-radius:14px; border:none; font-size:16px; font-weight:700;
+    background:var(--brand); color:#fff; cursor:pointer; width:100%;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn.gold{background:var(--accent)}
+  .btn.wish{background:var(--wish)}
+  .btn.ghost{background:#fff; color:var(--brand); border:2px solid var(--brand)}
+  .btn.sm{padding:10px 14px; font-size:14px; width:auto}
+  .btn.danger{background:#e14b4b}
+
+  /* ---- Scan ---- */
+  .scanwrap{background:#000; border-radius:18px; overflow:hidden; position:relative; aspect-ratio:3/4; margin-bottom:12px}
+  #scanVideo{width:100%; height:100%; object-fit:cover; display:block}
+  .scanframe{position:absolute; inset:18% 12%; border:3px solid rgba(255,255,255,.9); border-radius:16px; box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+  .scanhint{position:absolute; bottom:12px; left:0; right:0; text-align:center; color:#fff; font-size:13px; text-shadow:0 1px 3px #000}
+  .scanline{position:absolute; left:12%; right:12%; height:3px; background:var(--gold); box-shadow:0 0 10px var(--gold); top:50%; animation:scan 2s ease-in-out infinite}
+  @keyframes scan{0%,100%{top:22%}50%{top:76%}}
+  .manual{display:flex; gap:8px; margin-top:6px}
+  .manual input{flex:1; padding:13px; border-radius:12px; border:2px solid var(--line); font-size:16px}
+
+  /* ---- Modal ---- */
+  .modal{position:fixed; inset:0; background:rgba(30,15,50,.55); display:none; align-items:flex-end; justify-content:center; z-index:50}
+  .modal.show{display:flex}
+  .sheet{
+    background:var(--bg); width:100%; max-width:520px; border-radius:22px 22px 0 0; padding:18px 18px calc(24px + env(safe-area-inset-bottom));
+    max-height:92dvh; overflow-y:auto; animation:up .25s ease;
+  }
+  @keyframes up{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+  .sheet .grip{width:44px; height:5px; background:#d8cae8; border-radius:3px; margin:0 auto 14px}
+  .detail-top{display:flex; gap:14px; margin-bottom:14px}
+  .detail-top .cover{width:92px; height:132px; font-size:40px}
+  .detail-top h2{margin:0 0 6px; font-size:20px; line-height:1.2}
+  .detail-top .by{color:var(--muted); font-size:15px}
+  .field{margin-bottom:12px}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.5px}
+  .field input{width:100%; padding:12px; border-radius:12px; border:2px solid var(--line); font-size:16px; background:#fff}
+  .btnrow{display:flex; gap:10px; margin-top:8px}
+  .btnrow .btn{flex:1}
+
+  /* ---- Find results ---- */
+  .loading{text-align:center; color:var(--muted); padding:30px}
+  .spinner{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .addbtns{display:flex; gap:6px; flex-direction:column}
+  .miniadd{padding:7px 10px; font-size:12px; border-radius:10px; border:none; font-weight:700; cursor:pointer; white-space:nowrap}
+  .miniadd.lib{background:var(--brand); color:#fff}
+  .miniadd.wl{background:var(--wish); color:#fff}
+  .miniadd.have{background:#e6efe9; color:var(--ok)}
+
+  /* ---- Toast ---- */
+  #toast{
+    position:fixed; left:50%; bottom:96px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 18px; border-radius:999px; font-weight:600; font-size:14px;
+    opacity:0; pointer-events:none; transition:.25s; z-index:60; max-width:90%; text-align:center;
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  /* ---- Tab bar ---- */
+  nav{
+    position:fixed; bottom:0; left:0; right:0; display:flex; background:#fff;
+    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); z-index:40;
+    box-shadow:0 -4px 16px rgba(60,30,100,.08);
+  }
+  nav button{
+    flex:1; border:none; background:none; padding:9px 4px 8px; font-size:11px; font-weight:600;
+    color:var(--muted); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
+  }
+  nav button .ic{font-size:22px; line-height:1}
+  nav button.active{color:var(--brand)}
+  nav button.active .ic{transform:translateY(-1px)}
+
+  .credit{text-align:center; color:var(--muted); font-size:12px; margin:18px 0 4px}
+  .credit b{color:var(--brand)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📚 Mason's Book Nook</h1>
+  <div class="sub">Scan it • Save it • Wish for it</div>
+  <div class="count" id="hcount"></div>
+</header>
+
+<main>
+  <!-- ===== LIBRARY ===== -->
+  <section class="view active" id="view-library">
+    <div class="searchbar">
+      <span class="mag">🔍</span>
+      <input id="libSearch" placeholder="Search title, author, genre, series…" autocomplete="off">
+    </div>
+    <div class="filterrow">
+      <select id="genreFilter"><option value="">All genres</option></select>
+      <select id="seriesFilter"><option value="">All series</option></select>
+    </div>
+    <div id="libList"></div>
+  </section>
+
+  <!-- ===== SCAN ===== -->
+  <section class="view" id="view-scan">
+    <div class="scanwrap">
+      <video id="scanVideo" playsinline muted></video>
+      <div class="scanframe"></div>
+      <div class="scanline"></div>
+      <div class="scanhint" id="scanHint">Point at the barcode on the back of the book</div>
+    </div>
+    <button class="btn gold" id="scanToggle">📷 Start Camera</button>
+    <div class="manual">
+      <input id="isbnInput" inputmode="numeric" placeholder="…or type the ISBN number">
+      <button class="btn sm" id="isbnGo" style="width:auto">Look up</button>
+    </div>
+    <p style="color:var(--muted);font-size:13px;text-align:center;margin-top:14px">
+      The ISBN is the number under the barcode. It usually starts with 978.
+    </p>
+  </section>
+
+  <!-- ===== WISH LIST ===== -->
+  <section class="view" id="view-wishlist">
+    <div class="searchbar">
+      <span class="mag">🔍</span>
+      <input id="wishSearch" placeholder="Search your wish list…" autocomplete="off">
+    </div>
+    <div id="wishList"></div>
+  </section>
+
+  <!-- ===== FIND ===== -->
+  <section class="view" id="view-find">
+    <div class="searchbar">
+      <span class="mag">🔍</span>
+      <input id="findSearch" placeholder="Search any book by title or author…" autocomplete="off">
+    </div>
+    <div id="findResults">
+      <div class="empty">
+        <div class="big">🌎</div>
+        <div>Search for any book in the world.<br>Add it to your Library or Wish List!</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b></div>
+</main>
+
+<nav>
+  <button data-view="library" class="active"><span class="ic">📚</span>Library</button>
+  <button data-view="scan"><span class="ic">📷</span>Scan</button>
+  <button data-view="wishlist"><span class="ic">⭐</span>Wish List</button>
+  <button data-view="find"><span class="ic">🔍</span>Find</button>
+</nav>
+
+<!-- ===== Book detail sheet ===== -->
+<div class="modal" id="detailModal">
+  <div class="sheet" id="detailSheet"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* =======================================================================
+   Mason's Book Nook  —  Made by Mason Teibel
+   A single-file digital library:  scan • save • search • wish list
+   ======================================================================= */
+
+const LS_LIB = 'mbn_library';
+const LS_WISH = 'mbn_wishlist';
+
+let library  = load(LS_LIB);
+let wishlist = load(LS_WISH);
+
+function load(k){ try{ return JSON.parse(localStorage.getItem(k)) || []; }catch(e){ return []; } }
+function save(){ localStorage.setItem(LS_LIB, JSON.stringify(library)); localStorage.setItem(LS_WISH, JSON.stringify(wishlist)); updateCount(); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+/* ---------- helpers ---------- */
+function sortKey(title){ return (title||'').toLowerCase().replace(/^(the|a|an)\s+/,'').trim(); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1900); }
+function coverHtml(b){
+  if(b.cover) return `<img src="${b.cover}" class="cover" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover',textContent:'📖'}))">`;
+  return `<div class="cover">📖</div>`;
+}
+function inLibrary(book){ return library.some(b => sameBook(b,book)); }
+function inWish(book){ return wishlist.some(b => sameBook(b,book)); }
+function sameBook(a,b){
+  if(a.isbn && b.isbn) return a.isbn===b.isbn;
+  return sortKey(a.title)===sortKey(b.title) && (a.author||'').toLowerCase()===(b.author||'').toLowerCase();
+}
+
+function updateCount(){
+  document.getElementById('hcount').textContent =
+    `${library.length} book${library.length===1?'':'s'} · ${wishlist.length} on wish list`;
+}
+
+/* =======================================================================
+   TAB SWITCHING
+   ======================================================================= */
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const v = btn.dataset.view;
+    document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b===btn));
+    document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active', s.id==='view-'+v));
+    if(v!=='scan') stopCamera();
+  });
+});
+function goTo(v){ document.querySelector(`nav button[data-view="${v}"]`).click(); }
+
+/* =======================================================================
+   LIBRARY  —  alphabetical list + search + genre/series filters
+   ======================================================================= */
+const libSearch = document.getElementById('libSearch');
+const genreFilter = document.getElementById('genreFilter');
+const seriesFilter = document.getElementById('seriesFilter');
+[libSearch, genreFilter, seriesFilter].forEach(el=>el.addEventListener('input', renderLibrary));
+
+function refreshFilters(){
+  const genres = [...new Set(library.map(b=>b.genre).filter(Boolean))].sort();
+  const series = [...new Set(library.map(b=>b.series).filter(Boolean))].sort();
+  const keepG = genreFilter.value, keepS = seriesFilter.value;
+  genreFilter.innerHTML = '<option value="">All genres</option>' + genres.map(g=>`<option>${escapeHtml(g)}</option>`).join('');
+  seriesFilter.innerHTML = '<option value="">All series</option>' + series.map(s=>`<option>${escapeHtml(s)}</option>`).join('');
+  if(genres.includes(keepG)) genreFilter.value = keepG;
+  if(series.includes(keepS)) seriesFilter.value = keepS;
+}
+
+function renderLibrary(){
+  refreshFilters();
+  const q = libSearch.value.trim().toLowerCase();
+  const gf = genreFilter.value, sf = seriesFilter.value;
+  const list = document.getElementById('libList');
+
+  let books = library.filter(b=>{
+    if(gf && b.genre!==gf) return false;
+    if(sf && b.series!==sf) return false;
+    if(q){
+      const hay = `${b.title} ${b.author} ${b.genre} ${b.series}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  books.sort((a,b)=> sortKey(a.title).localeCompare(sortKey(b.title)));
+
+  if(!library.length){
+    list.innerHTML = `<div class="empty"><div class="big">📚</div>
+      <div>Your library is empty.<br>Tap <span class="btnlink" onclick="goTo('scan')">📷 Scan</span> to add your first book!</div></div>`;
+    return;
+  }
+  if(!books.length){ list.innerHTML = `<div class="empty"><div class="big">🔎</div><div>No books match that.</div></div>`; return; }
+
+  let html = '', lastLetter = '';
+  books.forEach(b=>{
+    const L = (sortKey(b.title)[0]||'#').toUpperCase();
+    if(L!==lastLetter){ html += `<div class="letter">${L}</div>`; lastLetter = L; }
+    html += bookCard(b);
+  });
+  list.innerHTML = html;
+}
+
+function bookCard(b){
+  const tags = [];
+  if(b.series) tags.push(`<span class="tag series">📚 ${escapeHtml(b.series)}</span>`);
+  if(b.genre)  tags.push(`<span class="tag">${escapeHtml(b.genre)}</span>`);
+  if(b.year)   tags.push(`<span class="tag year">${escapeHtml(String(b.year))}</span>`);
+  return `<div class="book" onclick="openDetail('${b.id}','lib')">
+      ${coverHtml(b)}
+      <div class="binfo">
+        <div class="t">${escapeHtml(b.title)}</div>
+        <div class="a">${escapeHtml(b.author||'Unknown author')}</div>
+        <div class="tags">${tags.join('')}</div>
+      </div>
+    </div>`;
+}
+
+/* =======================================================================
+   WISH LIST
+   ======================================================================= */
+const wishSearch = document.getElementById('wishSearch');
+wishSearch.addEventListener('input', renderWish);
+
+function renderWish(){
+  const q = wishSearch.value.trim().toLowerCase();
+  const list = document.getElementById('wishList');
+  let books = wishlist.filter(b=> !q || `${b.title} ${b.author} ${b.genre} ${b.series}`.toLowerCase().includes(q));
+  books.sort((a,b)=> sortKey(a.title).localeCompare(sortKey(b.title)));
+
+  if(!wishlist.length){
+    list.innerHTML = `<div class="empty"><div class="big">⭐</div>
+      <div>No wishes yet.<br>Tap <span class="btnlink" onclick="goTo('find')">🔍 Find</span> to look up books you want!</div></div>`;
+    return;
+  }
+  if(!books.length){ list.innerHTML = `<div class="empty"><div class="big">🔎</div><div>No wishes match that.</div></div>`; return; }
+  list.innerHTML = books.map(b=>bookCardWish(b)).join('');
+}
+function bookCardWish(b){
+  const tags = [];
+  if(b.series) tags.push(`<span class="tag series">📚 ${escapeHtml(b.series)}</span>`);
+  if(b.genre)  tags.push(`<span class="tag">${escapeHtml(b.genre)}</span>`);
+  if(b.year)   tags.push(`<span class="tag year">${escapeHtml(String(b.year))}</span>`);
+  return `<div class="book" onclick="openDetail('${b.id}','wish')">
+      ${coverHtml(b)}
+      <div class="binfo">
+        <div class="t">${escapeHtml(b.title)}</div>
+        <div class="a">${escapeHtml(b.author||'Unknown author')}</div>
+        <div class="tags">${tags.join('')}</div>
+      </div>
+    </div>`;
+}
+
+/* =======================================================================
+   DETAIL SHEET  —  view / edit / move / delete
+   ======================================================================= */
+const detailModal = document.getElementById('detailModal');
+detailModal.addEventListener('click', e=>{ if(e.target===detailModal) closeDetail(); });
+function closeDetail(){ detailModal.classList.remove('show'); }
+
+function openDetail(id, where){
+  const arr = where==='lib' ? library : wishlist;
+  const b = arr.find(x=>x.id===id);
+  if(!b) return;
+  const sheet = document.getElementById('detailSheet');
+  sheet.innerHTML = `
+    <div class="grip"></div>
+    <div class="detail-top">
+      ${coverHtml(b)}
+      <div>
+        <h2>${escapeHtml(b.title)}</h2>
+        <div class="by">by ${escapeHtml(b.author||'Unknown author')}</div>
+      </div>
+    </div>
+    <div class="field"><label>Title</label><input id="d_title" value="${escapeHtml(b.title)}"></div>
+    <div class="field"><label>Author</label><input id="d_author" value="${escapeHtml(b.author||'')}"></div>
+    <div class="field"><label>Year Made</label><input id="d_year" value="${escapeHtml(String(b.year||''))}"></div>
+    <div class="field"><label>Genre</label><input id="d_genre" value="${escapeHtml(b.genre||'')}"></div>
+    <div class="field"><label>Series</label><input id="d_series" value="${escapeHtml(b.series||'')}"></div>
+    <button class="btn ghost" onclick="saveEdits('${id}','${where}')">💾 Save changes</button>
+    <div class="btnrow">
+      ${where==='lib'
+        ? `<button class="btn wish" onclick="moveBook('${id}','lib','wish')">⭐ Move to Wish List</button>`
+        : `<button class="btn" onclick="moveBook('${id}','wish','lib')">📚 I got it! Add to Library</button>`}
+    </div>
+    <div class="btnrow">
+      <button class="btn danger" onclick="deleteBook('${id}','${where}')">🗑️ Remove</button>
+      <button class="btn ghost" onclick="closeDetail()">Close</button>
+    </div>
+  `;
+  detailModal.classList.add('show');
+}
+
+function saveEdits(id, where){
+  const arr = where==='lib' ? library : wishlist;
+  const b = arr.find(x=>x.id===id); if(!b) return;
+  b.title  = document.getElementById('d_title').value.trim() || b.title;
+  b.author = document.getElementById('d_author').value.trim();
+  b.year   = document.getElementById('d_year').value.trim();
+  b.genre  = document.getElementById('d_genre').value.trim();
+  b.series = document.getElementById('d_series').value.trim();
+  save(); renderAll(); closeDetail(); toast('Saved ✓');
+}
+function moveBook(id, from, to){
+  const src = from==='lib' ? library : wishlist;
+  const dst = to==='lib' ? library : wishlist;
+  const i = src.findIndex(x=>x.id===id); if(i<0) return;
+  const [b] = src.splice(i,1);
+  dst.push(b);
+  save(); renderAll(); closeDetail();
+  toast(to==='lib' ? 'Added to your Library 📚' : 'Moved to Wish List ⭐');
+}
+function deleteBook(id, where){
+  const arr = where==='lib' ? library : wishlist;
+  const i = arr.findIndex(x=>x.id===id); if(i<0) return;
+  arr.splice(i,1); save(); renderAll(); closeDetail(); toast('Removed');
+}
+
+/* =======================================================================
+   ADDING BOOKS
+   ======================================================================= */
+function addToLibrary(book, silent){
+  if(inLibrary(book)){ if(!silent) toast('Already in your library'); return false; }
+  library.push({...book, id: uid(), dateAdded: Date.now()});
+  save(); renderAll();
+  if(!silent) toast(`Added "${book.title}" 📚`);
+  return true;
+}
+function addToWish(book){
+  if(inWish(book)){ toast('Already on your wish list'); return false; }
+  wishlist.push({...book, id: uid(), dateAdded: Date.now()});
+  save(); renderAll(); toast(`Added to wish list ⭐`);
+  return true;
+}
+
+/* =======================================================================
+   BOOK LOOKUP  (Google Books primary, Open Library for series)
+   ======================================================================= */
+async function lookupISBN(isbn){
+  isbn = (isbn||'').replace(/[^0-9Xx]/g,'');
+  if(isbn.length < 10){ toast('That ISBN looks too short'); return null; }
+  let book = null;
+
+  // 1) Open Library edition record (reliable, no key, no rate limit) — best for series
+  try{
+    const r2 = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+    if(r2.ok){
+      const ed = await r2.json();
+      book = { isbn, title: ed.title||'Unknown title', author:'',
+               year: (ed.publish_date||'').match(/\d{4}/)?.[0]||'',
+               genre:'', series:'', cover:`https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg` };
+      if(ed.series && ed.series[0]) book.series = cleanSeries(ed.series[0]);
+      if(ed.subjects) book.genre = pickGenre(ed.subjects);
+      if(ed.authors && ed.authors[0]){
+        try{ const a = await (await fetch(`https://openlibrary.org${ed.authors[0].key}.json`)).json(); book.author = a.name||''; }catch(e){}
+      }
+    }
+  }catch(e){}
+
+  // 2) Google Books fills any gaps (author/genre/cover) — may be rate-limited, that's OK
+  if(!book || !book.author || !book.genre){
+    try{
+      const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+      if(r.ok){
+        const j = await r.json();
+        if(j.items && j.items.length){
+          const g = fromGoogle(j.items[0], isbn);
+          if(!book) book = g;
+          else { book.author = book.author||g.author; book.genre = book.genre||g.genre; book.year = book.year||g.year; if(!book.cover) book.cover = g.cover; }
+        }
+      }
+    }catch(e){}
+  }
+
+  if(!book){ toast("Couldn't find that book 😕 — try typing the title in Find"); return null; }
+  return book;
+}
+
+function fromGoogle(item, isbn){
+  const v = item.volumeInfo || {};
+  return {
+    isbn: isbn || (v.industryIdentifiers?.find(x=>/ISBN/.test(x.type))?.identifier) || '',
+    title: v.title + (v.subtitle ? '' : ''),
+    author: (v.authors||[]).join(', '),
+    year: (v.publishedDate||'').match(/\d{4}/)?.[0] || '',
+    genre: cleanGenre((v.categories||[])[0] || ''),
+    series: '',
+    cover: v.imageLinks ? (v.imageLinks.thumbnail||v.imageLinks.smallThumbnail||'').replace('http://','https://') : ''
+  };
+}
+function cleanGenre(g){
+  if(!g) return '';
+  g = String(g).split('/')[0].split(',')[0].trim();
+  g = g.replace(/[_:]/g,' ').replace(/\s+/g,' ').trim();
+  if(g.length>26) g = g.slice(0,26);
+  // Title-case for a tidy look
+  return g.replace(/\b\w/g, c=>c.toUpperCase());
+}
+// Pick the nicest genre from a list of Open Library subjects
+function pickGenre(subjects){
+  if(!subjects || !subjects.length) return '';
+  const bad = /series|character|accessible|large type|protected|in library|nyt:|:|reading level|spanish|award/i;
+  const cand = subjects.find(s => s && !bad.test(s) && !/\d/.test(s) && s.length<=26) || '';
+  return cleanGenre(cand);
+}
+function cleanSeries(s){
+  // Open Library series like "Harry Potter ; 1"  ->  "Harry Potter"
+  return String(s).split(/[;#(]/)[0].replace(/\s+\d+\s*$/,'').trim();
+}
+
+/* ---- Scan tab: manual ISBN entry ---- */
+document.getElementById('isbnGo').addEventListener('click', doIsbnLookup);
+document.getElementById('isbnInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doIsbnLookup(); });
+async function doIsbnLookup(){
+  const val = document.getElementById('isbnInput').value.trim();
+  if(!val) return;
+  toast('Looking it up…');
+  const book = await lookupISBN(val);
+  if(book){ document.getElementById('isbnInput').value=''; showScanResult(book); }
+}
+
+function showScanResult(book){
+  // Reuse the detail sheet as an "add" preview
+  const sheet = document.getElementById('detailSheet');
+  const already = inLibrary(book);
+  sheet.innerHTML = `
+    <div class="grip"></div>
+    <div class="detail-top">
+      ${coverHtml(book)}
+      <div>
+        <h2>${escapeHtml(book.title)}</h2>
+        <div class="by">by ${escapeHtml(book.author||'Unknown author')}</div>
+      </div>
+    </div>
+    <div class="tags" style="margin-bottom:14px">
+      ${book.series?`<span class="tag series">📚 ${escapeHtml(book.series)}</span>`:''}
+      ${book.genre?`<span class="tag">${escapeHtml(book.genre)}</span>`:''}
+      ${book.year?`<span class="tag year">${escapeHtml(String(book.year))}</span>`:''}
+    </div>
+    ${already ? `<div class="empty" style="padding:10px;color:var(--ok)">✓ Already in your library</div>` : ''}
+    <button class="btn gold" onclick='confirmAdd(${JSON.stringify(book).replace(/'/g,"&#39;")})'>📚 Add to My Library</button>
+    <div class="btnrow">
+      <button class="btn wish" onclick='confirmWish(${JSON.stringify(book).replace(/'/g,"&#39;")})'>⭐ Add to Wish List</button>
+      <button class="btn ghost" onclick="closeDetail()">Cancel</button>
+    </div>
+  `;
+  detailModal.classList.add('show');
+}
+function confirmAdd(book){ addToLibrary(book); closeDetail(); }
+function confirmWish(book){ addToWish(book); closeDetail(); }
+
+/* =======================================================================
+   CAMERA + BARCODE SCANNING  (native BarcodeDetector on Android Chrome)
+   ======================================================================= */
+let stream=null, detector=null, scanning=false, rafId=null, lastCode=null, lastTime=0;
+const video = document.getElementById('scanVideo');
+const scanToggle = document.getElementById('scanToggle');
+const scanHint = document.getElementById('scanHint');
+
+scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
+
+async function startCamera(){
+  if(!('BarcodeDetector' in window)){
+    scanHint.textContent = 'This phone can’t auto-scan — type the ISBN below instead.';
+    toast('Auto-scan not supported here — use the ISBN box');
+    return;
+  }
+  try{
+    detector = detector || new BarcodeDetector({formats:['ean_13','ean_8','upc_a','isbn','qr_code']});
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = stream; await video.play();
+    scanning = true; scanToggle.textContent = '⏹️ Stop Camera';
+    scanHint.textContent = 'Hold steady over the barcode…';
+    scanLoop();
+  }catch(e){
+    scanHint.textContent = 'Camera blocked. Allow camera, or type the ISBN below.';
+    toast('Could not open camera');
+  }
+}
+function stopCamera(){
+  scanning = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  video.srcObject=null;
+  scanToggle.textContent = '📷 Start Camera';
+}
+async function scanLoop(){
+  if(!scanning) return;
+  try{
+    const codes = await detector.detect(video);
+    if(codes.length){
+      const code = codes[0].rawValue.replace(/[^0-9Xx]/g,'');
+      const now = Date.now();
+      if(code && code.length>=10 && (code!==lastCode || now-lastTime>4000)){
+        lastCode=code; lastTime=now;
+        if(navigator.vibrate) navigator.vibrate(80);
+        scanHint.textContent = 'Found it! Looking up…';
+        const book = await lookupISBN(code);
+        if(book) showScanResult(book);
+        else scanHint.textContent = 'Not found — try again or type the ISBN';
+      }
+    }
+  }catch(e){}
+  rafId = requestAnimationFrame(scanLoop);
+}
+
+/* =======================================================================
+   FIND  —  search any book (Google Books)
+   ======================================================================= */
+const findSearch = document.getElementById('findSearch');
+let findTimer=null;
+findSearch.addEventListener('input', ()=>{ clearTimeout(findTimer); findTimer=setTimeout(runFind, 450); });
+findSearch.addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(findTimer); runFind(); }});
+
+async function runFind(){
+  const q = findSearch.value.trim();
+  const box = document.getElementById('findResults');
+  if(!q){ box.innerHTML = `<div class="empty"><div class="big">🌎</div><div>Search for any book in the world.<br>Add it to your Library or Wish List!</div></div>`; return; }
+  box.innerHTML = `<div class="loading"><div class="spinner"></div>Searching…</div>`;
+  let books = [];
+  // 1) Open Library search (no key, no rate limit)
+  try{
+    const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24&fields=title,author_name,first_publish_year,cover_i,isbn,subject`);
+    if(r.ok){
+      const j = await r.json();
+      books = (j.docs||[]).map(fromOpenLibDoc);
+    }
+  }catch(e){}
+  // 2) Fallback to Google Books if Open Library gave nothing
+  if(!books.length){
+    try{
+      const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=24`);
+      if(r.ok){ const j = await r.json(); books = (j.items||[]).map(it=>fromGoogle(it)); }
+    }catch(e){}
+  }
+  if(q !== findSearch.value.trim()) return; // a newer search started
+  if(!books.length){ box.innerHTML = `<div class="empty"><div class="big">🔎</div><div>No books found for “${escapeHtml(q)}”.</div></div>`; return; }
+  window._findCache = {}; books.forEach((b,i)=> window._findCache['f'+i]=b);
+  box.innerHTML = books.map(renderFindCard).join('');
+}
+
+function fromOpenLibDoc(d){
+  return {
+    isbn: (d.isbn && d.isbn[0]) || '',
+    title: d.title || 'Unknown title',
+    author: (d.author_name||[]).slice(0,2).join(', '),
+    year: d.first_publish_year || '',
+    genre: pickGenre(d.subject),
+    series: '',
+    cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : ''
+  };
+}
+function renderFindCard(b, i){
+  const idx = 'f'+i;
+  const have = inLibrary(b), wish = inWish(b);
+  const tags = [];
+  if(b.genre) tags.push(`<span class="tag">${escapeHtml(b.genre)}</span>`);
+  if(b.year)  tags.push(`<span class="tag year">${escapeHtml(String(b.year))}</span>`);
+  return `<div class="book" style="cursor:default">
+      ${coverHtml(b)}
+      <div class="binfo">
+        <div class="t">${escapeHtml(b.title)}</div>
+        <div class="a">${escapeHtml(b.author||'Unknown author')}</div>
+        <div class="tags">${tags.join('')}</div>
+      </div>
+      <div class="addbtns">
+        <button class="miniadd ${have?'have':'lib'}" onclick="findAdd('${idx}','lib',this)">${have?'✓ In library':'＋ Library'}</button>
+        <button class="miniadd ${wish?'have':'wl'}" onclick="findAdd('${idx}','wish',this)">${wish?'✓ Wished':'⭐ Wish'}</button>
+      </div>
+    </div>`;
+}
+// re-render find cards need index; patch renderFindCard call:
+function runFindRender(books, box){}
+function findAdd(idx, where, btn){
+  const b = window._findCache && window._findCache[idx];
+  if(!b) return;
+  if(where==='lib'){ if(addToLibrary(b)){ btn.className='miniadd have'; btn.textContent='✓ In library'; } }
+  else { if(addToWish(b)){ btn.className='miniadd have'; btn.textContent='✓ Wished'; } }
+}
+
+/* fix: renderFindCard used without index in map above */
+document.addEventListener('DOMContentLoaded', ()=>{});
+
+/* =======================================================================
+   INIT
+   ======================================================================= */
+function renderAll(){ renderLibrary(); renderWish(); updateCount(); }
+renderAll();
+
+/* Register service worker for offline + home-screen install */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
