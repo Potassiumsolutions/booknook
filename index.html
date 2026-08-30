@@ -76,6 +76,14 @@
   .genrerow:active{transform:scale(.99)}
   .genrerow.all{background:#f5efff; border-color:#e0d2f5}
   .gcount{background:#f0e9f8; color:var(--brand); border-radius:999px; padding:3px 12px; font-size:14px; font-weight:800; flex:0 0 auto}
+  /* Genre picker — books-on-a-shelf tiles */
+  .genregrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .genretile{display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 8px;
+    background:#faf6ff; border:1px solid #eadff7; border-radius:14px; cursor:pointer; text-align:center}
+  .genretile:active{transform:scale(.98)}
+  .genretile .gname{font-size:13px; font-weight:800; color:#5a3f96; line-height:1.2; word-break:break-word}
+  .genretile .gcount2{font-size:12px; font-weight:700; color:var(--muted)}
+  .genretile.all{grid-column:1 / -1; background:#f5efff; border-color:#e0d2f5}
   /* Series tracker */
   .seriescard{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; box-shadow:var(--shadow); cursor:pointer}
   .seriescard:active{transform:scale(.99)}
@@ -333,7 +341,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v35</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v36</span></div>
 </main>
 
 <nav>
@@ -745,24 +753,47 @@ function showGenreList(){
   const genres = Object.keys(counts).filter(g=>g!==NONE_GENRE).sort((a,b)=>a.localeCompare(b));
   if(counts[NONE_GENRE]) genres.push(NONE_GENRE);
 
-  const rows = genres.map(g=>
-    `<button class="genrerow" data-genre="${escapeHtml(g)}">
-       <span>${g===NONE_GENRE?'❔ ':''}${escapeHtml(g)}</span>
-       <span class="gcount">${counts[g]}</span>
-     </button>`).join('');
+  const tile = (g, label, count, cls='') =>
+    `<button class="genretile ${cls}" data-genre="${escapeHtml(g)}">
+       ${shelfIcon(label)}
+       <span class="gname">${escapeHtml(label)}</span>
+       <span class="gcount2">${count} book${count===1?'':'s'}</span>
+     </button>`;
+  const tiles = genres.map(g=>
+    tile(g, (g===NONE_GENRE?'❔ ':'')+g, counts[g])
+  ).join('');
 
+  const nReal = genres.filter(g=>g!==NONE_GENRE).length;
   sheet.innerHTML = `<div class="grip"></div>
     <h2 style="text-align:center;margin:4px 0 4px">🏷️ Your Genres</h2>
     <p style="text-align:center;color:var(--muted);margin:0 0 14px">
-      ${genres.filter(g=>g!==NONE_GENRE).length} genre${genres.filter(g=>g!==NONE_GENRE).length===1?'':'s'} in your library — tap one to see those books</p>
-    <button class="genrerow all" data-genre="__all__"><span>📚 All books</span><span class="gcount">${library.length}</span></button>
-    ${rows}
+      ${nReal} genre${nReal===1?'':'s'} in your library — tap a shelf to see those books</p>
+    <div class="genregrid">
+      ${tile('__all__','📚 All books', library.length, 'all')}
+      ${tiles}
+    </div>
     <button class="btn ghost" style="margin-top:14px" onclick="closeDetail()">Close</button>`;
 
-  sheet.querySelectorAll('.genrerow').forEach(el=>{
+  sheet.querySelectorAll('.genretile').forEach(el=>{
     el.addEventListener('click', ()=> filterByGenre(el.dataset.genre));
   });
   showModal();
+}
+
+/* A little "books on a shelf" icon; spine colors vary per genre name so each
+   shelf looks a bit different. */
+function shelfIcon(seed){
+  const pal = ['#d84a4a','#e6a700','#2fa855','#2f6bbf','#7a5cb0','#d63384','#e8632a'];
+  let h = 0; for(const ch of String(seed)) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  const col = i => pal[(h + i*2) % pal.length];
+  const spines = [[4,7,24],[12,6,28],[19,7,22],[27,6,26],[34,8,20]];
+  const books = spines.map((s,i)=>{
+    const [x,w,hh] = s, y = 34-hh;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${hh}" rx="1.5" fill="${col(i)}"/>`
+         + `<rect x="${x}" y="${y+3}" width="${w}" height="2" fill="rgba(255,255,255,.45)"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 48 40" width="46" height="38" aria-hidden="true">${books}`
+       + `<rect x="1" y="34" width="46" height="4.5" rx="1.5" fill="#8a5a2b"/></svg>`;
 }
 
 function filterByGenre(g){
@@ -1353,7 +1384,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v35';
+const APP_VERSION = 'v36';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
