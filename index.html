@@ -122,6 +122,12 @@
   .tag.price{background:#e6f6ea; color:#1e7d40}
   .booksum{font-size:12px; font-weight:800; color:#7a5cb0; margin-top:6px; line-height:1.3}
   .bookprice{font-size:16px; font-weight:900; color:#1e7d40; margin-top:4px}
+  /* book-rating (1–5 little books) */
+  .rating{display:flex; align-items:center; gap:2px; margin-top:7px; flex-wrap:wrap}
+  .ratebook{cursor:pointer; line-height:0; display:inline-flex; -webkit-tap-highlight-color:transparent}
+  .ratebook.ro{cursor:default}
+  .ratenum{font-size:12px; font-weight:800; color:#d63384; margin-left:6px}
+  .ratehint{font-size:12px; font-weight:700; color:var(--muted); margin-left:6px}
   /* per-book status chips (tap to toggle) on library cards */
   .marks{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
   .mark{display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:800; line-height:1;
@@ -341,7 +347,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v36</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v37</span></div>
 </main>
 
 <nav>
@@ -576,7 +582,13 @@ function showSummary(){
     const cur = priced[0].currency || 'USD';
     const total = priced.reduce((s,b)=>s+(Number(b.price)||0),0);
     let money; try{ money = new Intl.NumberFormat(undefined,{style:'currency',currency:cur}).format(total); }catch(e){ money='$'+total.toFixed(2); }
-    valueLine = `<div style="text-align:center;font-size:14px;font-weight:800;color:#1e7d40;margin:2px 0 16px">💲 ${money} across ${priced.length} priced book${priced.length===1?'':'s'}</div>`;
+    valueLine = `<div style="text-align:center;font-size:14px;font-weight:800;color:#1e7d40;margin:2px 0 10px">💲 ${money} across ${priced.length} priced book${priced.length===1?'':'s'}</div>`;
+  }
+  const rated = library.filter(b=>b.rating);
+  let ratingLine = '';
+  if(rated.length){
+    const avg = rated.reduce((s,b)=>s+b.rating,0)/rated.length;
+    ratingLine = `<div style="text-align:center;font-size:14px;font-weight:800;color:#d63384;margin:0 0 16px">📗 Average rating ${avg.toFixed(1)}/5 (${rated.length} rated)</div>`;
   }
 
   // tally helper for genres / series
@@ -610,6 +622,7 @@ function showSummary(){
     <div style="text-align:center;font-size:40px;font-weight:900;line-height:1;color:#d63384">${n}</div>
     <div style="text-align:center;font-size:14px;font-weight:800;color:var(--muted);margin:2px 0 14px">book${n===1?'':'s'} scanned</div>
     ${valueLine}
+    ${ratingLine}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${statTiles}</div>
     <h3 style="margin:0 0 4px;font-size:15px">🏷️ Top genres</h3>
     ${bars(genreRows,'#d63384')}
@@ -836,9 +849,41 @@ function bookCard(b){
         <div class="tags">${tags.join('')}</div>
         ${sumLine}
         ${priceLine}
+        ${ratingRow(b)}
         <div class="marks">${marks}</div>
       </div>
     </div>`;
+}
+/* A single book icon for the rating (filled = rated, faint = empty) */
+function ratingBookSvg(on){
+  const fill = on ? '#d63384' : '#efe4f7';
+  const stroke = on ? '#a3005c' : '#cdbbe6';
+  return `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">`
+       + `<rect x="4" y="4" width="16" height="16" rx="2.6" fill="${fill}" stroke="${stroke}" stroke-width="1.4"/>`
+       + `<rect x="7.2" y="4" width="1.5" height="16" fill="rgba(255,255,255,.55)"/></svg>`;
+}
+function ratingBooksHtml(b, interactive){
+  let s = '';
+  for(let i=1;i<=5;i++){
+    const svg = ratingBookSvg(i <= (b.rating||0));
+    s += interactive
+      ? `<span class="ratebook" onclick="setRating('${b.id}',${i},event)">${svg}</span>`
+      : `<span class="ratebook ro">${svg}</span>`;
+  }
+  return s;
+}
+function ratingRow(b){
+  const r = b.rating||0;
+  return `<div class="rating">${ratingBooksHtml(b,true)}`
+    + (r ? `<span class="ratenum">${r}/5</span>` : `<span class="ratehint">Tap to rate</span>`)
+    + `</div>`;
+}
+function setRating(id, n, ev){
+  if(ev){ ev.stopPropagation(); }
+  const b = library.find(x=>x.id===id); if(!b) return;
+  b.rating = (b.rating===n) ? 0 : n;   // tap the same book again to clear
+  save();
+  renderLibrary();
 }
 function toggleMark(id, field, ev){
   if(ev){ ev.stopPropagation(); }
@@ -918,7 +963,7 @@ function openDetail(id, where){
   if(!b) return;
   const sheet = document.getElementById('detailSheet');
   const row = (icon,label,val)=> val ? `<div class="inforow"><span class="ik">${icon} ${label}</span><span class="iv">${escapeHtml(String(val))}</span></div>` : '';
-  const noInfo = !b.year && !b.genre && !b.series && b.price==null;
+  const noInfo = !b.year && !b.genre && !b.series && b.price==null && !b.rating;
   sheet.innerHTML = `
     <div class="grip"></div>
     <div class="bookpage">
@@ -931,6 +976,7 @@ function openDetail(id, where){
       ${row('🏷️','Genre', b.genre)}
       ${row('🔖','Series', b.series)}
       ${row('💲','Price', b.price!=null ? fmtPrice(b) : '')}
+      ${b.rating ? `<div class="inforow"><span class="ik">⭐ Rating</span><span class="iv" style="display:inline-flex;gap:2px;align-items:center">${ratingBooksHtml(b,false)}</span></div>` : ''}
       ${noInfo ? '<div class="inforow"><span class="ik" style="color:var(--muted)">No extra info yet — tap Edit to add some</span></div>' : ''}
     </div>
     <button class="btn ghost" onclick="editDetail('${id}','${where}')">✏️ Edit details</button>
@@ -1384,7 +1430,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
