@@ -286,7 +286,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v25</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v26</span></div>
 </main>
 
 <nav>
@@ -322,6 +322,15 @@ let library  = load(LS_LIB);
 let wishlist = load(LS_WISH);
 let seriesSets = load(LS_SER);
 let trash = load(LS_TRASH);   // recently deleted: [{tid, kind:'lib'|'wish'|'series', data, when}]
+
+const TRASH_MAX_AGE = 5 * 24 * 60 * 60 * 1000;   // deleted items clear after 5 days
+function purgeOldTrash(){
+  const cutoff = Date.now() - TRASH_MAX_AGE;
+  const before = trash.length;
+  trash = trash.filter(t => (t.when || 0) >= cutoff);
+  if(trash.length !== before){ try{ localStorage.setItem(LS_TRASH, JSON.stringify(trash)); }catch(e){} }
+}
+purgeOldTrash();
 
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)) || []; }catch(e){ return []; } }
 function save(){
@@ -435,6 +444,7 @@ function restoreItem(tid){
   toast('Brought it back ✓');
 }
 function updateTrashButtons(){
+  purgeOldTrash();
   const n = trash.length;
   ['trashBtnLib','trashBtnSer'].forEach(id=>{
     const el = document.getElementById(id); if(!el) return;
@@ -443,6 +453,7 @@ function updateTrashButtons(){
   });
 }
 function showTrash(){
+  purgeOldTrash();
   const sheet = document.getElementById('detailSheet');
   if(!trash.length){
     sheet.innerHTML = `<div class="grip"></div>
@@ -1115,7 +1126,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v26';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
