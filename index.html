@@ -209,6 +209,14 @@
 
   .credit{text-align:center; color:var(--onblack); font-size:12px; margin:18px 0 4px}
   .credit b{color:#c9b6f2}
+
+  /* Library book-count banner with a crowd of stickmen behind it */
+  .countbanner{position:relative; overflow:hidden; border-radius:18px; margin-bottom:14px;
+    background:linear-gradient(135deg,#a3005c,#d63384); box-shadow:0 4px 14px rgba(0,0,0,.35); min-height:104px}
+  .countbanner .stickbg{position:absolute; inset:0; width:100%; height:100%}
+  .countinner{position:relative; z-index:1; text-align:center; padding:18px 12px}
+  .countnum{font-size:46px; font-weight:900; color:#fff; line-height:1; text-shadow:0 2px 6px rgba(0,0,0,.45)}
+  .countlbl{font-size:14px; font-weight:800; color:#ffd9ec; letter-spacing:.4px; margin-top:5px}
 </style>
 </head>
 <body>
@@ -222,6 +230,29 @@
 <main>
   <!-- ===== LIBRARY ===== -->
   <section class="view active" id="view-library">
+    <div class="countbanner" id="libCountBanner">
+      <svg class="stickbg" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <pattern id="stickpat" width="46" height="58" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
+            <g fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="11" r="5.5"/>
+              <line x1="12" y1="16.5" x2="12" y2="33"/>
+              <line x1="2" y1="24" x2="22" y2="24"/>
+              <line x1="12" y1="33" x2="4" y2="45"/>
+              <line x1="12" y1="33" x2="20" y2="45"/>
+              <circle cx="35" cy="40" r="5.5"/>
+              <line x1="35" y1="45.5" x2="35" y2="62"/>
+              <line x1="25" y1="53" x2="45" y2="53"/>
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#stickpat)"/>
+      </svg>
+      <div class="countinner">
+        <div class="countnum" id="libCountNum">0</div>
+        <div class="countlbl" id="libCountLbl">books scanned</div>
+      </div>
+    </div>
     <div class="searchbar">
       <span class="mag">🔍</span>
       <input id="libSearch" placeholder="Search title, author, genre, series…" autocomplete="off">
@@ -286,7 +317,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v27</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v28</span></div>
 </main>
 
 <nav>
@@ -516,6 +547,10 @@ function sameBook(a,b){
 function updateCount(){
   document.getElementById('hcount').textContent =
     `${library.length} book${library.length===1?'':'s'} · ${wishlist.length} on wish list`;
+  const nEl = document.getElementById('libCountNum');
+  if(nEl) nEl.textContent = library.length;
+  const lEl = document.getElementById('libCountLbl');
+  if(lEl) lEl.textContent = library.length===1 ? 'book scanned' : 'books scanned';
 }
 
 /* =======================================================================
@@ -1135,7 +1170,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
