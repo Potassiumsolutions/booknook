@@ -111,6 +111,7 @@
   .tag{font-size:11px; padding:2px 8px; border-radius:999px; background:#f0e9f8; color:var(--brand); font-weight:600}
   .tag.series{background:#fff2df; color:#b57400}
   .tag.year{background:#e9f3ff; color:#2f6bbf}
+  .tag.price{background:#e6f6ea; color:#1e7d40}
   /* per-book status chips (tap to toggle) on library cards */
   .marks{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
   .mark{display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:800; line-height:1;
@@ -228,6 +229,7 @@
   .countinner{position:relative; z-index:1; text-align:center; padding:18px 12px}
   .countnum{font-size:46px; font-weight:900; color:#fff; line-height:1; text-shadow:0 2px 6px rgba(0,0,0,.45)}
   .countlbl{font-size:14px; font-weight:800; color:#ffd9ec; letter-spacing:.4px; margin-top:5px}
+  .countval{font-size:13px; font-weight:700; color:#ffe9f3; margin-top:6px; min-height:0}
 </style>
 </head>
 <body>
@@ -261,6 +263,7 @@
       <div class="countinner">
         <div class="countnum" id="libCountNum">0</div>
         <div class="countlbl" id="libCountLbl">books scanned</div>
+        <div class="countval" id="libCountVal"></div>
       </div>
     </div>
     <div class="searchbar">
@@ -327,7 +330,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v31</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v32</span></div>
 </main>
 
 <nav>
@@ -559,6 +562,20 @@ function updateCount(){
   if(nEl) nEl.textContent = library.length;
   const lEl = document.getElementById('libCountLbl');
   if(lEl) lEl.textContent = library.length===1 ? 'book scanned' : 'books scanned';
+  const vEl = document.getElementById('libCountVal');
+  if(vEl){
+    const priced = library.filter(b=>b.price!=null);
+    if(priced.length){
+      const cur = priced[0].currency || 'USD';
+      const total = priced.reduce((s,b)=>s + (Number(b.price)||0), 0);
+      let money;
+      try{ money = new Intl.NumberFormat(undefined,{style:'currency',currency:cur}).format(total); }
+      catch(e){ money = '$'+total.toFixed(2); }
+      vEl.textContent = `💲 ${money} in ${priced.length} priced book${priced.length===1?'':'s'}`;
+    } else {
+      vEl.textContent = '';
+    }
+  }
 }
 
 /* =======================================================================
@@ -685,6 +702,7 @@ function bookCard(b){
   if(b.series) tags.push(`<span class="tag series">📚 ${escapeHtml(b.series)}</span>`);
   if(b.genre)  tags.push(`<span class="tag">${escapeHtml(b.genre)}</span>`);
   if(b.year)   tags.push(`<span class="tag year">${escapeHtml(String(b.year))}</span>`);
+  if(b.price!=null) tags.push(`<span class="tag price">${escapeHtml(fmtPrice(b))}</span>`);
   const mark = (field,icon,lbl)=>
     `<span class="mark ${field} ${b[field]?'on':''}" onclick="toggleMark('${b.id}','${field}',event)">`
     + `<span class="mi">${icon}</span>${lbl}</span>`;
@@ -1030,10 +1048,17 @@ async function lookupISBN(isbn){
         if(j.items && j.items.length){
           const g = fromGoogle(j.items[0], isbn);
           if(!book) book = g;
-          else { book.author = book.author||g.author; book.genre = book.genre||g.genre; book.year = book.year||g.year; if(!book.cover) book.cover = g.cover; }
+          else { book.author = book.author||g.author; book.genre = book.genre||g.genre; book.year = book.year||g.year; if(!book.cover) book.cover = g.cover;
+                 if(book.price==null && g.price!=null){ book.price = g.price; book.currency = g.currency; } }
         }
       }
     }catch(e){}
+  }
+
+  // 3) Price (auto, best-effort) — Google Books only, and only for books it sells
+  if(book && book.price == null){
+    const pr = await fetchPrice(isbn);
+    if(pr){ book.price = pr.amount; book.currency = pr.currency; }
   }
 
   return book || null;
@@ -1067,6 +1092,7 @@ async function searchByCode(code){
 
 function fromGoogle(item, isbn){
   const v = item.volumeInfo || {};
+  const pr = priceFromSaleInfo(item.saleInfo);
   return {
     isbn: isbn || (v.industryIdentifiers?.find(x=>/ISBN/.test(x.type))?.identifier) || '',
     title: v.title + (v.subtitle ? '' : ''),
@@ -1074,8 +1100,31 @@ function fromGoogle(item, isbn){
     year: (v.publishedDate||'').match(/\d{4}/)?.[0] || '',
     genre: cleanGenre((v.categories||[])[0] || ''),
     series: '',
-    cover: v.imageLinks ? (v.imageLinks.thumbnail||v.imageLinks.smallThumbnail||'').replace('http://','https://') : ''
+    cover: v.imageLinks ? (v.imageLinks.thumbnail||v.imageLinks.smallThumbnail||'').replace('http://','https://') : '',
+    price: pr ? pr.amount : null,
+    currency: pr ? pr.currency : ''
   };
+}
+/* Google Books is the only free price source, and only for books it actually sells. */
+function priceFromSaleInfo(s){
+  if(!s) return null;
+  const p = s.retailPrice || s.listPrice;
+  if(p && typeof p.amount === 'number') return { amount: p.amount, currency: p.currencyCode || 'USD' };
+  return null;
+}
+function fmtPrice(b){
+  if(b.price == null) return '';
+  try{ return new Intl.NumberFormat(undefined, {style:'currency', currency: b.currency||'USD'}).format(b.price); }
+  catch(e){ return '$' + Number(b.price).toFixed(2); }
+}
+/* Best-effort price fetch for an ISBN (country param makes Google return a price). */
+async function fetchPrice(isbn){
+  isbn = (isbn||'').replace(/[^0-9Xx]/g,''); if(isbn.length<10) return null;
+  try{
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`);
+    if(r.ok){ const j = await r.json(); if(j.items && j.items[0]) return priceFromSaleInfo(j.items[0].saleInfo); }
+  }catch(e){}
+  return null;
 }
 function cleanGenre(g){
   if(!g) return '';
@@ -1139,6 +1188,23 @@ async function fixNonEnglishTitles(){
   if(changed){ save(); renderAll(); }
 }
 
+/* Background pass: fetch a price for library books scanned before prices existed.
+   Only books with no price key yet (undefined). Sets null when none is found so
+   we don't keep re-asking. Runs quietly on load, capped so it's not spammy. */
+async function backfillPrices(){
+  const targets = library.filter(b => b.isbn && b.price === undefined);
+  if(!targets.length) return;
+  let changed = false, n = 0;
+  for(const b of targets){
+    if(n++ > 20) break;
+    const pr = await fetchPrice(b.isbn);
+    if(pr){ b.price = pr.amount; b.currency = pr.currency; }
+    else  { b.price = null; }
+    changed = true;
+  }
+  if(changed){ save(); renderLibrary(); updateCount(); }
+}
+
 /* ---- Scan tab: manual ISBN entry ---- */
 document.getElementById('isbnGo').addEventListener('click', doIsbnLookup);
 document.getElementById('isbnInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doIsbnLookup(); });
@@ -1196,7 +1262,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v31';
+const APP_VERSION = 'v32';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
@@ -1642,6 +1708,7 @@ document.getElementById('shareBtn').addEventListener('click', shareLibrary);
 function renderAll(){ renderLibrary(); renderWish(); renderSeries(); updateTrashButtons(); updateCount(); }
 renderAll();
 fixNonEnglishTitles();   // quietly convert any foreign book titles to English
+backfillPrices();        // quietly fetch prices for books scanned before prices existed
 checkSharedLink();       // if opened from a friend's share link, show their books
 
 /* Register service worker for offline + home-screen install.
