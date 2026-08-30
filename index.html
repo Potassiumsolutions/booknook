@@ -242,7 +242,7 @@
 <main>
   <!-- ===== LIBRARY ===== -->
   <section class="view active" id="view-library">
-    <div class="countbanner" id="libCountBanner">
+    <div class="countbanner" id="libCountBanner" onclick="showSummary()" style="cursor:pointer">
       <svg class="stickbg" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
         <defs>
           <pattern id="stickpat" width="46" height="58" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
@@ -274,6 +274,7 @@
       <select id="genreFilter"><option value="">All genres</option></select>
       <select id="seriesFilter"><option value="">All series</option></select>
     </div>
+    <button class="btn ghost sm" id="summaryBtn" style="width:100%;margin-bottom:12px">📊 My book summary</button>
     <button class="btn ghost sm genrebtn" id="genreListBtn">🏷️ See all my genres</button>
     <button class="btn ghost sm" id="shareBtn" style="width:100%;margin-bottom:12px">👥 Share my library</button>
     <button class="btn ghost sm" id="trashBtnLib" style="width:100%;margin-bottom:12px;display:none">🗑️ Recently Deleted</button>
@@ -330,7 +331,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v33</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v34</span></div>
 </main>
 
 <nav>
@@ -533,6 +534,82 @@ function showTrash(){
     <button class="btn ghost" style="margin-top:12px" onclick="closeDetail()">Close</button>`;
   showModal();
 }
+
+/* ---------- Summary of the whole library ---------- */
+function showSummary(){
+  const sheet = document.getElementById('detailSheet');
+  const n = library.length;
+  if(!n){
+    sheet.innerHTML = `<div class="grip"></div>
+      <div class="empty"><div class="big">📊</div><div>No books yet! Scan some books and your summary shows up here.</div></div>
+      <button class="btn ghost" onclick="closeDetail()">Close</button>`;
+    showModal(); return;
+  }
+  const count = f => library.filter(f).length;
+  const stats = [
+    ['✓','Read','#2fa855', count(b=>b.read)],
+    ['📖','Reading','#2f6bbf', count(b=>b.reading)],
+    ['⭐','Fav','#e6a700', count(b=>b.fav)],
+    ['❤️','Loved','#d84a4a', count(b=>b.loved)],
+    ['🏠','Own','#7a5cb0', count(b=>b.own)]
+  ];
+  const statTiles = stats.map(([ic,lbl,col,v])=>
+    `<div style="flex:1 1 84px;background:#faf6ff;border:1px solid #eadff7;border-radius:12px;padding:10px 6px;text-align:center">
+       <div style="font-size:22px;font-weight:900;color:${col};line-height:1">${v}</div>
+       <div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:3px">${ic} ${lbl}</div>
+     </div>`).join('');
+
+  // price total
+  const priced = library.filter(b=>b.price!=null);
+  let valueLine = '';
+  if(priced.length){
+    const cur = priced[0].currency || 'USD';
+    const total = priced.reduce((s,b)=>s+(Number(b.price)||0),0);
+    let money; try{ money = new Intl.NumberFormat(undefined,{style:'currency',currency:cur}).format(total); }catch(e){ money='$'+total.toFixed(2); }
+    valueLine = `<div style="text-align:center;font-size:14px;font-weight:800;color:#1e7d40;margin:2px 0 16px">💲 ${money} across ${priced.length} priced book${priced.length===1?'':'s'}</div>`;
+  }
+
+  // tally helper for genres / series
+  const tally = key => {
+    const m = {};
+    library.forEach(b=>{ const v=(b[key]||'').trim(); if(v) m[v]=(m[v]||0)+1; });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  };
+  const bars = (rows, color) => {
+    if(!rows.length) return `<div style="font-size:13px;color:var(--muted);padding:2px 0 6px">None yet</div>`;
+    const max = rows[0][1];
+    return rows.map(([name,c])=>
+      `<div style="margin:6px 0">
+         <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:3px">
+           <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(name)}</span>
+           <span style="color:var(--muted);flex:0 0 auto;margin-left:8px">${c}</span>
+         </div>
+         <div style="height:8px;background:#efe8f7;border-radius:99px;overflow:hidden">
+           <div style="height:100%;width:${Math.round(c/max*100)}%;background:${color};border-radius:99px"></div>
+         </div>
+       </div>`).join('');
+  };
+  const genreRows = tally('genre');
+  const seriesRows = tally('series');
+
+  // newest book
+  const newest = library.slice().sort((a,b)=>(b.dateAdded||0)-(a.dateAdded||0))[0];
+
+  sheet.innerHTML = `<div class="grip"></div>
+    <h2 style="text-align:center;margin:2px 0 2px">📊 My Book Summary</h2>
+    <div style="text-align:center;font-size:40px;font-weight:900;line-height:1;color:#d63384">${n}</div>
+    <div style="text-align:center;font-size:14px;font-weight:800;color:var(--muted);margin:2px 0 14px">book${n===1?'':'s'} scanned</div>
+    ${valueLine}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${statTiles}</div>
+    <h3 style="margin:0 0 4px;font-size:15px">🏷️ Top genres</h3>
+    ${bars(genreRows,'#d63384')}
+    <h3 style="margin:16px 0 4px;font-size:15px">🔖 Top series</h3>
+    ${bars(seriesRows,'#7a5cb0')}
+    ${newest ? `<div style="margin-top:16px;font-size:13px;color:var(--muted)">🆕 Newest: <b style="color:var(--ink,#333)">${escapeHtml(newest.title)}</b></div>` : ''}
+    <button class="btn ghost" style="margin-top:16px" onclick="closeDetail()">Close</button>`;
+  showModal();
+}
+document.getElementById('summaryBtn').addEventListener('click', showSummary);
 
 /* ---------- helpers ---------- */
 function sortKey(title){ return (title||'').toLowerCase().replace(/^(the|a|an)\s+/,'').trim(); }
@@ -1267,7 +1344,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v34';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
