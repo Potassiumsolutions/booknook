@@ -111,6 +111,14 @@
   .tag{font-size:11px; padding:2px 8px; border-radius:999px; background:#f0e9f8; color:var(--brand); font-weight:600}
   .tag.series{background:#fff2df; color:#b57400}
   .tag.year{background:#e9f3ff; color:#2f6bbf}
+  /* per-book "Read" checkbox on library cards */
+  .readtoggle{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:3px;
+    cursor:pointer; padding:4px 6px; border-radius:10px; user-select:none; -webkit-tap-highlight-color:transparent}
+  .readtoggle .rbox{width:28px; height:28px; border-radius:8px; border:2px solid #c9b6e6;
+    display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:900; color:#fff; background:#fff}
+  .readtoggle.on .rbox{background:#2fa855; border-color:#2fa855}
+  .readtoggle .rlbl{font-size:11px; font-weight:800; color:var(--muted)}
+  .readtoggle.on .rlbl{color:#2fa855}
 
   .empty{text-align:center; color:var(--onblack); padding:50px 20px}
   .empty .big{font-size:52px; margin-bottom:10px}
@@ -316,7 +324,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v29</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v30</span></div>
 </main>
 
 <nav>
@@ -681,7 +689,18 @@ function bookCard(b){
         <div class="a">${escapeHtml(b.author||'Unknown author')}</div>
         <div class="tags">${tags.join('')}</div>
       </div>
+      <div class="readtoggle ${b.read?'on':''}" onclick="toggleRead('${b.id}',event)" title="Mark as read">
+        <span class="rbox">${b.read?'✓':''}</span>
+        <span class="rlbl">Read</span>
+      </div>
     </div>`;
+}
+function toggleRead(id, ev){
+  if(ev){ ev.stopPropagation(); }
+  const b = library.find(x=>x.id===id); if(!b) return;
+  b.read = !b.read;
+  save();
+  renderLibrary();
 }
 
 /* =======================================================================
@@ -1167,7 +1186,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
