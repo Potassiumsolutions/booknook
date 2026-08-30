@@ -330,7 +330,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v32</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v33</span></div>
 </main>
 
 <nav>
@@ -801,7 +801,7 @@ function openDetail(id, where){
   if(!b) return;
   const sheet = document.getElementById('detailSheet');
   const row = (icon,label,val)=> val ? `<div class="inforow"><span class="ik">${icon} ${label}</span><span class="iv">${escapeHtml(String(val))}</span></div>` : '';
-  const noInfo = !b.year && !b.genre && !b.series;
+  const noInfo = !b.year && !b.genre && !b.series && b.price==null;
   sheet.innerHTML = `
     <div class="grip"></div>
     <div class="bookpage">
@@ -813,6 +813,7 @@ function openDetail(id, where){
       ${row('📅','Year made', b.year)}
       ${row('🏷️','Genre', b.genre)}
       ${row('🔖','Series', b.series)}
+      ${row('💲','Price', b.price!=null ? fmtPrice(b) : '')}
       ${noInfo ? '<div class="inforow"><span class="ik" style="color:var(--muted)">No extra info yet — tap Edit to add some</span></div>' : ''}
     </div>
     <button class="btn ghost" onclick="editDetail('${id}','${where}')">✏️ Edit details</button>
@@ -842,6 +843,7 @@ function editDetail(id, where){
     <div class="field"><label>Year Made</label><input id="d_year" value="${escapeHtml(String(b.year||''))}"></div>
     <div class="field"><label>Genre</label><input id="d_genre" value="${escapeHtml(b.genre||'')}"></div>
     <div class="field"><label>Series</label><input id="d_series" value="${escapeHtml(b.series||'')}"></div>
+    <div class="field"><label>Price (what it cost)</label><input id="d_price" inputmode="decimal" placeholder="e.g. 12.99" value="${b.price!=null ? escapeHtml(String(b.price)) : ''}"></div>
     <button class="btn" onclick="saveEdits('${id}','${where}')">💾 Save changes</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openDetail('${id}','${where}')">Cancel</button>
   `;
@@ -856,6 +858,9 @@ function saveEdits(id, where){
   b.year   = document.getElementById('d_year').value.trim();
   b.genre  = document.getElementById('d_genre').value.trim();
   b.series = document.getElementById('d_series').value.trim();
+  const rawPrice = document.getElementById('d_price').value.replace(/[^0-9.]/g,'');
+  if(rawPrice === ''){ b.price = null; }
+  else { const n = parseFloat(rawPrice); if(!isNaN(n)){ b.price = n; if(!b.currency) b.currency = 'USD'; } }
   save(); renderAll(); openDetail(id, where); toast('Saved ✓');
 }
 function moveBook(id, from, to){
@@ -1262,7 +1267,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v32';
+const APP_VERSION = 'v33';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
