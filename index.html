@@ -112,6 +112,8 @@
   .tag.series{background:#fff2df; color:#b57400}
   .tag.year{background:#e9f3ff; color:#2f6bbf}
   .tag.price{background:#e6f6ea; color:#1e7d40}
+  .booksum{font-size:12px; font-weight:800; color:#7a5cb0; margin-top:6px; line-height:1.3}
+  .bookprice{font-size:16px; font-weight:900; color:#1e7d40; margin-top:4px}
   /* per-book status chips (tap to toggle) on library cards */
   .marks{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
   .mark{display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:800; line-height:1;
@@ -331,7 +333,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v34</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v35</span></div>
 </main>
 
 <nav>
@@ -779,7 +781,6 @@ function bookCard(b){
   if(b.series) tags.push(`<span class="tag series">📚 ${escapeHtml(b.series)}</span>`);
   if(b.genre)  tags.push(`<span class="tag">${escapeHtml(b.genre)}</span>`);
   if(b.year)   tags.push(`<span class="tag year">${escapeHtml(String(b.year))}</span>`);
-  if(b.price!=null) tags.push(`<span class="tag price">${escapeHtml(fmtPrice(b))}</span>`);
   const mark = (field,icon,lbl)=>
     `<span class="mark ${field} ${b[field]?'on':''}" onclick="toggleMark('${b.id}','${field}',event)">`
     + `<span class="mi">${icon}</span>${lbl}</span>`;
@@ -790,12 +791,20 @@ function bookCard(b){
     mark('loved','❤️','Loved'),
     mark('own','🏠','Own')
   ].join('');
+  // one-line summary of THIS book's ticked statuses
+  const on = [
+    b.read&&'✓ Read', b.reading&&'📖 Reading', b.fav&&'⭐ Fav', b.loved&&'❤️ Loved', b.own&&'🏠 Own'
+  ].filter(Boolean);
+  const sumLine   = on.length ? `<div class="booksum">${on.join(' · ')}</div>` : '';
+  const priceLine = b.price!=null ? `<div class="bookprice">💲 ${escapeHtml(fmtPrice(b))}</div>` : '';
   return `<div class="book" onclick="openDetail('${b.id}','lib')">
       ${coverHtml(b)}
       <div class="binfo">
         <div class="t">${escapeHtml(b.title)}</div>
         <div class="a">${escapeHtml(b.author||'Unknown author')}</div>
         <div class="tags">${tags.join('')}</div>
+        ${sumLine}
+        ${priceLine}
         <div class="marks">${marks}</div>
       </div>
     </div>`;
@@ -1344,7 +1353,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v34';
+const APP_VERSION = 'v35';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
