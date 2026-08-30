@@ -224,7 +224,6 @@
 <header>
   <h1>📚 Mason's Book Nook</h1>
   <div class="sub">Scan it • Save it • Wish for it</div>
-  <div class="count" id="hcount"></div>
 </header>
 
 <main>
@@ -317,7 +316,7 @@
     <div id="seriesList"></div>
   </section>
 
-  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v28</span></div>
+  <div class="credit">Made with ❤️ by <b>Mason Teibel</b> · <span id="verTag">v29</span></div>
 </main>
 
 <nav>
@@ -545,8 +544,6 @@ function sameBook(a,b){
 }
 
 function updateCount(){
-  document.getElementById('hcount').textContent =
-    `${library.length} book${library.length===1?'':'s'} · ${wishlist.length} on wish list`;
   const nEl = document.getElementById('libCountNum');
   if(nEl) nEl.textContent = library.length;
   const lEl = document.getElementById('libCountLbl');
@@ -1170,7 +1167,7 @@ const scanHint = document.getElementById('scanHint');
 scanToggle.addEventListener('click', ()=>{ scanning ? stopCamera() : startCamera(); });
 
 /* Plain-language camera self-check so we can see what's wrong on a real phone. */
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 document.getElementById('diagBtn').addEventListener('click', runCameraCheck);
 async function runCameraCheck(){
   const box = document.getElementById('scanDiag');
